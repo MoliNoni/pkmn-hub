@@ -1,4 +1,4 @@
-import type { Pokemon } from "@/types/types";
+import type { Pokemon, PokemonType } from "@/types/types";
 
 type PokeApiTypeEntry = {
   type: {
@@ -15,7 +15,19 @@ type PokeApiPokemonResponse = {
   types: PokeApiTypeEntry[];
 };
 
+type PokeApiTypePokemonEntry = {
+  pokemon: {
+    name: string;
+    url: string;
+  };
+};
+
+type PokeApiTypeResponse = {
+  pokemon: PokeApiTypePokemonEntry[];
+};
+
 const pokemonCache = new Map<string, Pokemon | null>();
+const pokemonTypeCache = new Map<PokemonType, string[]>();
 
 const normalizePokemonName = (name: string) =>
   name.trim().toLowerCase().replace(/\s+/g, "-");
@@ -62,6 +74,45 @@ export async function getPokemonByName(
   }
 }
 
+// Fetches all Pokemon names for a given type and caches the result for reuse.
+export async function getPokemonsByType(type: PokemonType): Promise<string[]> {
+  if (pokemonTypeCache.has(type)) {
+    return pokemonTypeCache.get(type) ?? [];
+  }
+
+  try {
+    const response = await fetch(`https://pokeapi.co/api/v2/type/${type}`, {
+      next: { revalidate: 60 * 60 * 24 },
+    });
+
+    if (!response.ok) {
+      pokemonTypeCache.set(type, []);
+      return [];
+    }
+
+    const data = (await response.json()) as PokeApiTypeResponse;
+    const pokemonNames = data.pokemon.map((entry) => entry.pokemon.name);
+
+    pokemonTypeCache.set(type, pokemonNames);
+    return pokemonNames;
+  } catch {
+    pokemonTypeCache.set(type, []);
+    return [];
+  }
+}
+
+// Returns the current cached or fetched count for a Pokemon type.
+export async function getPokemonCountByType(type: PokemonType): Promise<number> {
+  const pokemons = await getPokemonsByType(type);
+  return pokemons.length;
+}
+
+// Placeholder for future frequency-based scoring across different games.
+export function getDynamicPokemonFrequencyScore(pokemonName: string): number {
+  void pokemonName;
+  return 1;
+}
+
 export async function getPokemonsByName(names: string[]): Promise<Pokemon[]> {
   const uniqueNames = [...new Set(names.map(normalizePokemonName))].filter(
     Boolean,
@@ -75,5 +126,7 @@ export async function getPokemonsByName(names: string[]): Promise<Pokemon[]> {
 export function sanitizePokemonNames(names: string[]): string[] {
   return names
     .map((name) => name.trim())
-    .filter((name, index, array) => Boolean(name) && array.indexOf(name) === index);
+    .filter(
+      (name, index, array) => Boolean(name) && array.indexOf(name) === index,
+    );
 }
