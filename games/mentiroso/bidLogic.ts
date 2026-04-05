@@ -33,7 +33,7 @@ export function submitBid(params: {
     playerId: params.playerId,
     playerName: currentPlayer?.name ?? "Jugador",
     count: params.count,
-    pokemonType: game.selectedThemeType ?? "normal",
+    themeLabel: game.selectedTheme?.label ?? "Tema pendiente",
     createdAt: new Date().toISOString(),
   };
 
@@ -47,7 +47,7 @@ export function submitBid(params: {
     history: [
       ...game.history,
       createHistoryEntry(
-        `${bid.playerName} dice: puedo decir ${bid.count} Pokemon de tipo ${bid.pokemonType}.`,
+        `${bid.playerName} dice: puedo decir ${bid.count} elemento(s) del tema ${bid.themeLabel}.`,
       ),
     ],
   };

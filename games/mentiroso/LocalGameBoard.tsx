@@ -2,11 +2,18 @@
 
 import { useMemo, useState } from "react";
 
-import type { CoinSide, GameState, PokemonType } from "@/types/types";
+import type { CoinSide, GameState, ThemeEntityKind, ThemeNode } from "@/types/types";
 
 type SetupPlayer = {
   name: string;
   coinChoice: CoinSide;
+};
+
+type ThemePickerNodeProps = {
+  isRoot?: boolean;
+  node: ThemeNode;
+  onSelect: (themeId: string) => void;
+  selectedThemeId: string | null;
 };
 
 const initialPlayers: [SetupPlayer, SetupPlayer] = [
@@ -32,11 +39,117 @@ async function sendTurnRequest(body: unknown): Promise<GameState> {
   return data;
 }
 
+function findFirstSelectableThemeId(nodes: ThemeNode[]): string | null {
+  for (const node of nodes) {
+    if (node.themeTemplateId) {
+      return node.themeTemplateId;
+    }
+
+    const nestedThemeId = findFirstSelectableThemeId(node.children);
+
+    if (nestedThemeId) {
+      return nestedThemeId;
+    }
+  }
+
+  return null;
+}
+
+function findThemeNodePath(
+  nodes: ThemeNode[],
+  themeId: string,
+  trail: string[] = [],
+): string[] | null {
+  for (const node of nodes) {
+    const nextTrail = [...trail, node.label];
+
+    if (node.themeTemplateId === themeId) {
+      return nextTrail;
+    }
+
+    const nestedMatch = findThemeNodePath(node.children, themeId, nextTrail);
+
+    if (nestedMatch) {
+      return nestedMatch;
+    }
+  }
+
+  return null;
+}
+
+function getEntityCopy(entityKind: ThemeEntityKind): {
+  plural: string;
+  singular: string;
+} {
+  if (entityKind === "item") {
+    return { singular: "item", plural: "items" };
+  }
+
+  if (entityKind === "move") {
+    return { singular: "movimiento", plural: "movimientos" };
+  }
+
+  return { singular: "Pokemon", plural: "Pokemon" };
+}
+
+function ThemePickerNode({
+  isRoot = false,
+  node,
+  onSelect,
+  selectedThemeId,
+}: ThemePickerNodeProps) {
+  const isSelected = node.themeTemplateId === selectedThemeId;
+  const canSelect = Boolean(node.themeTemplateId);
+  const submenuPosition = isRoot
+    ? "left-0 top-full mt-3"
+    : "left-full top-0 ml-3";
+
+  return (
+    <div className="group relative">
+      <button
+        type="button"
+        onClick={() => {
+          if (node.themeTemplateId) {
+            onSelect(node.themeTemplateId);
+          }
+        }}
+        className={`flex min-w-[15rem] items-center justify-between gap-3 rounded-[1.2rem] border px-4 py-3 text-left text-sm transition ${
+          isSelected
+            ? "border-amber-300 bg-amber-400/20 text-amber-100"
+            : "border-white/10 bg-white/8 text-white hover:border-white/25 hover:bg-white/12"
+        } ${canSelect ? "cursor-pointer" : "cursor-default"}`}
+      >
+        <span>{node.label}</span>
+        {node.children.length ? (
+          <span className="text-xs uppercase tracking-[0.3em] text-white/45">
+            {isRoot ? "Mas" : "Sub"}
+          </span>
+        ) : null}
+      </button>
+
+      {node.children.length ? (
+        <div
+          className={`absolute ${submenuPosition} z-20 hidden min-w-[16rem] flex-col gap-2 rounded-[1.2rem] border border-white/10 bg-[#180814]/95 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)] group-hover:flex`}
+        >
+          {node.children.map((childNode) => (
+            <ThemePickerNode
+              key={childNode.id}
+              node={childNode}
+              onSelect={onSelect}
+              selectedThemeId={selectedThemeId}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function LocalGameBoard() {
   const [setupPlayers, setSetupPlayers] = useState(initialPlayers);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [bidCount, setBidCount] = useState("1");
-  const [themeChoice, setThemeChoice] = useState<PokemonType>("fire");
+  const [themeChoice, setThemeChoice] = useState<string | null>(null);
   const [challengeInput, setChallengeInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -57,14 +170,25 @@ export default function LocalGameBoard() {
   const isThemeSelection = gameState?.status === "waiting-theme";
   const isChallengeResponse = gameState?.status === "challenge-response";
   const isRoundEnded = gameState?.status === "round-ended";
-  const lockedBidType = gameState?.selectedThemeType ?? "fire";
+  const activeTheme = gameState?.selectedTheme ?? null;
+  const challengeTheme = gameState?.challenge?.theme ?? null;
   const submittedChallengeCount =
-    gameState?.challenge?.submittedPokemons.length ?? 0;
+    gameState?.challenge?.submittedEntries.length ?? 0;
   const requiredChallengeCount = gameState?.challenge?.requiredCount ?? 0;
   const turnLabel = currentPlayer ? `Turno de ${currentPlayer.name}` : "Tu turno";
   const centerMessage = lastBid
     ? `${lastBid.playerName} puede decir ${lastBid.count}`
     : `${currentPlayer?.name ?? "Jugador"} puede decir ${bidCount}`;
+  const selectedThemePath = useMemo(
+    () =>
+      gameState && themeChoice
+        ? findThemeNodePath(gameState.themeOptions, themeChoice)
+        : null,
+    [gameState, themeChoice],
+  );
+  const activeThemeCopy = getEntityCopy(
+    activeTheme?.entityKind ?? challengeTheme?.entityKind ?? "pokemon",
+  );
 
   function updatePlayer(
     index: 0 | 1,
@@ -93,7 +217,7 @@ export default function LocalGameBoard() {
       });
 
       setGameState(nextGameState);
-      setThemeChoice(nextGameState.themeOptions[0] ?? "fire");
+      setThemeChoice(findFirstSelectableThemeId(nextGameState.themeOptions));
       setBidCount("1");
       setChallengeInput("");
     } catch (createError) {
@@ -108,7 +232,7 @@ export default function LocalGameBoard() {
   }
 
   async function handleThemeSelection() {
-    if (!gameState) {
+    if (!gameState || !themeChoice) {
       return;
     }
 
@@ -120,7 +244,7 @@ export default function LocalGameBoard() {
         action: "select_theme",
         gameId: gameState.gameId,
         playerId: gameState.coinFlipWinnerPlayerId,
-        selectedThemeType: themeChoice,
+        selectedThemeId: themeChoice,
       });
 
       setGameState(nextGameState);
@@ -150,7 +274,6 @@ export default function LocalGameBoard() {
         gameId: gameState.gameId,
         playerId: currentPlayer.id,
         count: Number(bidCount),
-        pokemonType: lockedBidType,
       });
 
       setGameState(nextGameState);
@@ -205,9 +328,9 @@ export default function LocalGameBoard() {
         action: "submit_challenge_response",
         gameId: gameState.gameId,
         playerId: currentPlayer.id,
-        pokemons: challengeInput
+        entries: challengeInput
           .split(",")
-          .map((pokemon) => pokemon.trim())
+          .map((entry) => entry.trim())
           .filter(Boolean),
       });
 
@@ -263,8 +386,8 @@ export default function LocalGameBoard() {
             Prepara la partida local
           </h1>
           <p className="mx-auto max-w-2xl text-sm leading-6 text-white/75 sm:text-base">
-            Define los dos jugadores y su eleccion de moneda. El resto de la
-            partida se renderiza como tablero central.
+            Define los dos jugadores y su eleccion de moneda. Luego podras
+            elegir un tema jerarquico para la ronda.
           </p>
         </div>
 
@@ -326,224 +449,244 @@ export default function LocalGameBoard() {
   return (
     <div className="flex w-full max-w-[110rem] items-stretch gap-6">
       <section className="relative min-w-0 flex-1 overflow-hidden rounded-[2.2rem] border border-white/15 bg-black/20 p-4 text-white shadow-[0_28px_100px_rgba(0,0,0,0.45)] backdrop-blur-md sm:p-6 lg:p-8">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute left-[-8%] top-[56%] h-[4px] w-[120%] rotate-[-26deg] bg-black/85 shadow-[0_0_0_2px_rgba(255,255,255,0.06)]"
-      />
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-[-8%] top-[56%] h-[4px] w-[120%] rotate-[-26deg] bg-black/85 shadow-[0_0_0_2px_rgba(255,255,255,0.06)]"
+        />
 
-      <div className="relative min-h-[720px] lg:min-h-[760px]">
-        <div className="absolute left-0 top-0 flex max-w-[14rem] flex-col">
-          <span className="text-sm uppercase tracking-[0.3em] text-white/50">
-            Jugador 1
-          </span>
-          <span className="mt-2 text-3xl font-semibold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.4)] sm:text-4xl">
-            {leftPlayer?.name ?? "Jugador 1"}
-          </span>
-          <span className="mt-2 text-sm text-white/65">
-            {leftPlayer ? `${leftPlayer.points} punto(s)` : ""}
-          </span>
-        </div>
-
-        <div className="absolute bottom-0 right-0 flex max-w-[14rem] flex-col items-end text-right">
-          <span className="text-sm uppercase tracking-[0.3em] text-white/50">
-            Jugador 2
-          </span>
-          <span className="mt-2 text-3xl font-semibold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.4)] sm:text-4xl">
-            {rightPlayer?.name ?? "Jugador 2"}
-          </span>
-          <span className="mt-2 text-sm text-white/65">
-            {rightPlayer ? `${rightPlayer.points} punto(s)` : ""}
-          </span>
-        </div>
-
-        <div className="mx-auto flex max-w-[16rem] flex-col items-center pt-2 text-center">
-          <span className="text-xl font-semibold text-white sm:text-2xl">
-            {turnLabel}
-          </span>
-        </div>
-
-        <div className="mt-8 flex flex-col items-center justify-center px-4 pb-44 pt-4 sm:pb-40 lg:pb-28">
-          <div className="relative flex h-[22rem] w-[22rem] flex-col overflow-hidden rounded-full border-[6px] border-white/90 bg-white shadow-[0_28px_70px_rgba(0,0,0,0.5)] sm:h-[25rem] sm:w-[25rem]">
-            <div className="flex flex-[1.08] flex-col items-center justify-center bg-[#d80f26] px-6 text-center">
-              <span className="text-sm uppercase tracking-[0.45em] text-white/70">
-                Tema
-              </span>
-              <span className="mt-3 text-4xl font-semibold uppercase tracking-[0.08em] text-white sm:text-5xl">
-                {lockedBidType}
-              </span>
-              <span className="mt-3 text-sm text-white/80">
-                Pokemon tipo {lockedBidType}
-              </span>
-            </div>
-
-            <div className="relative h-[8px] bg-black">
-              <div className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border-[6px] border-black bg-white shadow-[0_0_0_4px_rgba(255,255,255,0.2)] sm:h-16 sm:w-16" />
-            </div>
-
-            <div className="flex flex-1 flex-col items-center justify-center px-7 text-center text-slate-900">
-              <span className="text-xs uppercase tracking-[0.35em] text-slate-500">
-                Declaracion actual
-              </span>
-              <p className="mt-3 max-w-[14rem] text-xl font-semibold leading-tight sm:text-2xl">
-                {centerMessage}
-              </p>
-            </div>
+        <div className="relative min-h-[720px] lg:min-h-[760px]">
+          <div className="absolute left-0 top-0 flex max-w-[14rem] flex-col">
+            <span className="text-sm uppercase tracking-[0.3em] text-white/50">
+              Jugador 1
+            </span>
+            <span className="mt-2 text-3xl font-semibold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.4)] sm:text-4xl">
+              {leftPlayer?.name ?? "Jugador 1"}
+            </span>
+            <span className="mt-2 text-sm text-white/65">
+              {leftPlayer ? `${leftPlayer.points} punto(s)` : ""}
+            </span>
           </div>
 
-          <div className="mt-8 flex w-full max-w-3xl flex-col items-center gap-4">
-            {canBid ? (
-              <>
-                <button
-                  type="button"
-                  onClick={handleLiar}
-                  disabled={!canCallLiar || isSubmitting}
-                  className="min-w-[16rem] rounded-full border-[5px] border-white bg-[#8d0016] px-8 py-4 text-lg font-semibold text-white shadow-[0_16px_40px_rgba(0,0,0,0.35)] transition hover:bg-[#a9001b] disabled:cursor-not-allowed disabled:bg-[#8d0016]/60"
-                >
-                  !Mentiroso!
-                </button>
+          <div className="absolute bottom-0 right-0 flex max-w-[14rem] flex-col items-end text-right">
+            <span className="text-sm uppercase tracking-[0.3em] text-white/50">
+              Jugador 2
+            </span>
+            <span className="mt-2 text-3xl font-semibold text-white drop-shadow-[0_2px_12px_rgba(0,0,0,0.4)] sm:text-4xl">
+              {rightPlayer?.name ?? "Jugador 2"}
+            </span>
+            <span className="mt-2 text-sm text-white/65">
+              {rightPlayer ? `${rightPlayer.points} punto(s)` : ""}
+            </span>
+          </div>
 
-                <div className="flex w-full max-w-[34rem] items-center justify-center rounded-full border-[5px] border-white bg-[#8d0016] px-4 py-4 text-center shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
-                  <div className="flex flex-wrap items-center justify-center gap-3 text-white">
-                    <span className="text-sm font-medium sm:text-base">
-                      Yo puedo decir
-                    </span>
-                    <input
-                      type="number"
-                      min={1}
-                      value={bidCount}
-                      onChange={(event) => setBidCount(event.target.value)}
-                      disabled={!canBid || isSubmitting}
-                      className="w-24 rounded-full border border-white/20 bg-white px-4 py-2 text-center text-base font-semibold text-slate-900 outline-none disabled:bg-white/70"
-                    />
+          <div className="mx-auto flex max-w-[16rem] flex-col items-center pt-2 text-center">
+            <span className="text-xl font-semibold text-white sm:text-2xl">
+              {turnLabel}
+            </span>
+          </div>
+
+          <div className="mt-8 flex flex-col items-center justify-center px-4 pb-44 pt-4 sm:pb-40 lg:pb-28">
+            <div className="relative flex h-[22rem] w-[22rem] flex-col overflow-hidden rounded-full border-[6px] border-white/90 bg-white shadow-[0_28px_70px_rgba(0,0,0,0.5)] sm:h-[25rem] sm:w-[25rem]">
+              <div className="flex flex-[1.08] flex-col items-center justify-center bg-[#d80f26] px-6 text-center">
+                <span className="text-sm uppercase tracking-[0.45em] text-white/70">
+                  Tema
+                </span>
+                <span className="mt-3 text-center text-2xl font-semibold uppercase leading-tight tracking-[0.08em] text-white sm:text-3xl">
+                  {activeTheme?.label ?? "Pendiente"}
+                </span>
+                <span className="mt-3 text-sm text-white/80">
+                  {activeTheme?.description ?? "Selecciona un tema para empezar"}
+                </span>
+              </div>
+
+              <div className="relative h-[8px] bg-black">
+                <div className="absolute left-1/2 top-1/2 h-14 w-14 -translate-x-1/2 -translate-y-1/2 rounded-full border-[6px] border-black bg-white shadow-[0_0_0_4px_rgba(255,255,255,0.2)] sm:h-16 sm:w-16" />
+              </div>
+
+              <div className="flex flex-1 flex-col items-center justify-center px-7 text-center text-slate-900">
+                <span className="text-xs uppercase tracking-[0.35em] text-slate-500">
+                  Declaracion actual
+                </span>
+                <p className="mt-3 max-w-[14rem] text-xl font-semibold leading-tight sm:text-2xl">
+                  {centerMessage}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-8 flex w-full max-w-3xl flex-col items-center gap-4">
+              {canBid ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={handleLiar}
+                    disabled={!canCallLiar || isSubmitting}
+                    className="min-w-[16rem] rounded-full border-[5px] border-white bg-[#8d0016] px-8 py-4 text-lg font-semibold text-white shadow-[0_16px_40px_rgba(0,0,0,0.35)] transition hover:bg-[#a9001b] disabled:cursor-not-allowed disabled:bg-[#8d0016]/60"
+                  >
+                    !Mentiroso!
+                  </button>
+
+                  <div className="flex w-full max-w-[34rem] items-center justify-center rounded-full border-[5px] border-white bg-[#8d0016] px-4 py-4 text-center shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+                    <div className="flex flex-wrap items-center justify-center gap-3 text-white">
+                      <span className="text-sm font-medium sm:text-base">
+                        Yo puedo decir
+                      </span>
+                      <input
+                        type="number"
+                        min={1}
+                        value={bidCount}
+                        onChange={(event) => setBidCount(event.target.value)}
+                        disabled={!canBid || isSubmitting}
+                        className="w-24 rounded-full border border-white/20 bg-white px-4 py-2 text-center text-base font-semibold text-slate-900 outline-none disabled:bg-white/70"
+                      />
+                      <button
+                        type="button"
+                        onClick={handleBid}
+                        disabled={!canBid || isSubmitting}
+                        className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#8d0016] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:bg-white/60"
+                      >
+                        Aceptar
+                      </button>
+                    </div>
+                  </div>
+                </>
+              ) : null}
+
+              {isThemeSelection ? (
+                <div className="w-full max-w-[52rem] rounded-[1.6rem] border border-amber-200/40 bg-black/35 p-5 text-center">
+                  <p className="text-xs uppercase tracking-[0.4em] text-amber-200/80">
+                    Seleccion de tema
+                  </p>
+                  <p className="mt-3 text-sm text-white/80">
+                    {
+                      gameState.players.find(
+                        (player) => player.id === gameState.coinFlipWinnerPlayerId,
+                      )?.name
+                    }{" "}
+                    gano la moneda y elige el tema de la ronda. Pasa el cursor
+                    sobre una categoria para ver sus subcategorias.
+                  </p>
+
+                  <div className="mt-5 flex flex-wrap items-start justify-center gap-3">
+                    {gameState.themeOptions.map((node) => (
+                      <ThemePickerNode
+                        key={node.id}
+                        isRoot
+                        node={node}
+                        onSelect={setThemeChoice}
+                        selectedThemeId={themeChoice}
+                      />
+                    ))}
+                  </div>
+
+                  <div className="mt-5 rounded-[1.2rem] border border-white/10 bg-white/6 px-4 py-4 text-left text-sm text-white/85">
+                    <p className="text-xs uppercase tracking-[0.35em] text-white/45">
+                      Tema seleccionado
+                    </p>
+                    <p className="mt-2 font-semibold text-white">
+                      {selectedThemePath?.join(" > ") ?? "Ninguno"}
+                    </p>
+                  </div>
+
+                  <div className="mt-4">
                     <button
                       type="button"
-                      onClick={handleBid}
-                      disabled={!canBid || isSubmitting}
-                      className="rounded-full bg-white px-4 py-2 text-sm font-semibold text-[#8d0016] transition hover:bg-white/90 disabled:cursor-not-allowed disabled:bg-white/60"
+                      onClick={handleThemeSelection}
+                      disabled={isSubmitting || !themeChoice}
+                      className="rounded-full bg-amber-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-amber-400 disabled:bg-amber-300"
                     >
-                      Aceptar
+                      Confirmar tema
                     </button>
                   </div>
                 </div>
-              </>
-            ) : null}
+              ) : null}
 
-            {isThemeSelection ? (
-              <div className="w-full max-w-[34rem] rounded-[1.6rem] border border-amber-200/40 bg-black/35 p-5 text-center">
-                <p className="text-xs uppercase tracking-[0.4em] text-amber-200/80">
-                  Seleccion de tema
-                </p>
-                <p className="mt-3 text-sm text-white/80">
-                  {gameState.players.find(
-                    (player) => player.id === gameState.coinFlipWinnerPlayerId,
-                  )?.name} gano la moneda y elige el tema de la ronda.
-                </p>
-                <div className="mt-4 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
-                  <select
-                    value={themeChoice}
-                    onChange={(event) =>
-                      setThemeChoice(event.target.value as PokemonType)
+              {isChallengeResponse && gameState.challenge ? (
+                <div className="w-full max-w-[34rem] rounded-[1.6rem] border border-amber-200/40 bg-black/35 p-5 text-center">
+                  <div className="flex items-center justify-between gap-4 text-left">
+                    <div>
+                      <p className="text-sm text-white/80">
+                        Debes escribir {requiredChallengeCount}{" "}
+                        {activeThemeCopy.plural} que cumplan:
+                      </p>
+                      <p className="mt-2 font-semibold text-white">
+                        {gameState.challenge.theme.label}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-xl font-semibold text-amber-200">
+                      {submittedChallengeCount}/{requiredChallengeCount}
+                    </p>
+                  </div>
+                  <textarea
+                    value={challengeInput}
+                    onChange={(event) => setChallengeInput(event.target.value)}
+                    disabled={!isChallengeResponse || isSubmitting}
+                    rows={4}
+                    className="mt-4 w-full rounded-[1.3rem] border border-white/15 bg-white/92 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-white/70"
+                    placeholder={`Escribelos separados por comas. Ejemplo: ${activeThemeCopy.singular}, ${activeThemeCopy.singular}, ${activeThemeCopy.singular}`}
+                  />
+                  <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center">
+                    <button
+                      type="button"
+                      onClick={handleChallengeResponse}
+                      disabled={!isChallengeResponse || isSubmitting}
+                      className="rounded-full bg-amber-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-amber-400 disabled:bg-amber-300"
+                    >
+                      Agregar respuesta
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConcede}
+                      disabled={!isChallengeResponse || isSubmitting}
+                      className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-white/90 disabled:bg-white/60"
+                    >
+                      Conceder victoria
+                    </button>
+                  </div>
+                </div>
+              ) : null}
+
+              {isRoundEnded && gameState.roundResult ? (
+                <div className="w-full max-w-[34rem] rounded-[1.6rem] border border-emerald-200/40 bg-black/35 p-5 text-center shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
+                  <p className="text-xs uppercase tracking-[0.4em] text-emerald-200/80">
+                    Ronda terminada
+                  </p>
+                  <p className="mt-3 text-lg font-semibold text-white">
+                    Gana{" "}
+                    {
+                      gameState.players.find(
+                        (player) =>
+                          player.id === gameState.roundResult?.winnerPlayerId,
+                      )?.name
                     }
-                    className="w-full rounded-full border border-white/15 bg-white/90 px-5 py-3 text-sm text-slate-900 outline-none sm:max-w-[18rem]"
-                  >
-                    {gameState.themeOptions.map((typeOption) => (
-                      <option key={typeOption} value={typeOption}>
-                        {typeOption}
-                      </option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    onClick={handleThemeSelection}
-                    disabled={isSubmitting}
-                    className="rounded-full bg-amber-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-amber-400 disabled:bg-amber-300"
-                  >
-                    Confirmar tema
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {isChallengeResponse && gameState.challenge ? (
-              <div className="w-full max-w-[34rem] rounded-[1.6rem] border border-amber-200/40 bg-black/35 p-5 text-center">
-                <div className="flex items-center justify-between gap-4 text-left">
-                  <p className="text-sm text-white/80">
-                    Debes escribir {requiredChallengeCount} Pokemon del tipo{" "}
-                    {gameState.challenge.requiredType}.
                   </p>
-                  <p className="shrink-0 text-xl font-semibold text-amber-200">
-                    {submittedChallengeCount}/{requiredChallengeCount}
-                  </p>
-                </div>
-                <textarea
-                  value={challengeInput}
-                  onChange={(event) => setChallengeInput(event.target.value)}
-                  disabled={!isChallengeResponse || isSubmitting}
-                  rows={4}
-                  className="mt-4 w-full rounded-[1.3rem] border border-white/15 bg-white/92 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-white/70"
-                  placeholder="Puedes escribirlos separados por comas. Ejemplo: Pichu, Pikachu, Raichu"
-                />
-                <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center">
-                  <button
-                    type="button"
-                    onClick={handleChallengeResponse}
-                    disabled={!isChallengeResponse || isSubmitting}
-                    className="rounded-full bg-amber-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-amber-400 disabled:bg-amber-300"
-                  >
-                    Agregar Pokemon
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleConcede}
-                    disabled={!isChallengeResponse || isSubmitting}
-                    className="rounded-full bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:bg-white/90 disabled:bg-white/60"
-                  >
-                    Conceder victoria
-                  </button>
-                </div>
-              </div>
-            ) : null}
-
-            {isRoundEnded && gameState.roundResult ? (
-              <div className="w-full max-w-[34rem] rounded-[1.6rem] border border-emerald-200/40 bg-black/35 p-5 text-center shadow-[0_16px_40px_rgba(0,0,0,0.35)]">
-                <p className="text-xs uppercase tracking-[0.4em] text-emerald-200/80">
-                  Ronda terminada
-                </p>
-                <p className="mt-3 text-lg font-semibold text-white">
-                  Gana{" "}
-                  {
-                    gameState.players.find(
-                      (player) =>
-                        player.id === gameState.roundResult?.winnerPlayerId,
-                    )?.name
-                  }
-                </p>
-                <p className="mt-2 text-sm text-white/80">
-                  Conteo real: {gameState.roundResult.actualCount}
-                </p>
-                {gameState.roundResult.submittedPokemons?.length ? (
                   <p className="mt-2 text-sm text-white/80">
-                    Respondio con:{" "}
-                    {gameState.roundResult.submittedPokemons.join(", ")}
+                    Tema resuelto: {gameState.roundResult.selectedTheme.label}
                   </p>
-                ) : null}
-                {gameState.roundResult.invalidPokemons?.length ? (
-                  <p className="mt-2 text-sm text-rose-200">
-                    Invalidos: {gameState.roundResult.invalidPokemons.join(", ")}
+                  <p className="mt-2 text-sm text-white/80">
+                    Conteo real: {gameState.roundResult.actualCount}
                   </p>
-                ) : null}
-              </div>
-            ) : null}
+                  {gameState.roundResult.submittedEntries?.length ? (
+                    <p className="mt-2 text-sm text-white/80">
+                      Respondio con:{" "}
+                      {gameState.roundResult.submittedEntries.join(", ")}
+                    </p>
+                  ) : null}
+                  {gameState.roundResult.invalidEntries?.length ? (
+                    <p className="mt-2 text-sm text-rose-200">
+                      Invalidos: {gameState.roundResult.invalidEntries.join(", ")}
+                    </p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 
-      </div>
-
-      {error ? (
-        <div className="mt-6 rounded-[1.4rem] border border-red-300/30 bg-red-950/40 px-4 py-3 text-sm text-red-100">
-          {error}
-        </div>
-      ) : null}
+        {error ? (
+          <div className="mt-6 rounded-[1.4rem] border border-red-300/30 bg-red-950/40 px-4 py-3 text-sm text-red-100">
+            {error}
+          </div>
+        ) : null}
       </section>
 
       <aside className="hidden w-full max-w-[24rem] shrink-0 rounded-[2.2rem] border border-white/15 bg-black/35 p-5 text-white shadow-[0_28px_100px_rgba(0,0,0,0.35)] backdrop-blur-md xl:block">

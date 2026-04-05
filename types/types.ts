@@ -25,6 +25,7 @@ export const POKEMON_TYPES = [
 ] as const;
 
 export type PokemonType = (typeof POKEMON_TYPES)[number];
+export type ThemeEntityKind = "pokemon" | "item" | "move";
 export type CoinSide = "cara" | "sello";
 export type TurnPhase =
   | "setup"
@@ -43,6 +44,25 @@ export type Pokemon = {
   name: string;
   types: string[];
   spriteUrl?: string;
+};
+
+export type ThemeNode = {
+  id: string;
+  label: string;
+  themeTemplateId?: string;
+  children: ThemeNode[];
+};
+
+export type ThemeParams = Record<string, boolean | number | string>;
+
+export type ActiveRoundTheme = {
+  id: string;
+  templateId: string;
+  entityKind: ThemeEntityKind;
+  categoryPath: string[];
+  label: string;
+  description: string;
+  params: ThemeParams;
 };
 
 export type Claim = {
@@ -75,7 +95,7 @@ export type Bid = {
   playerId: string;
   playerName: string;
   count: number;
-  pokemonType: PokemonType;
+  themeLabel: string;
   createdAt: string;
 };
 
@@ -100,9 +120,9 @@ export type RoundResult = {
   actualCount: number;
   wasLiarCallSuccessful: boolean;
   pointAwardedTo: string;
-  selectedThemeType: PokemonType;
-  submittedPokemons?: string[];
-  invalidPokemons?: string[];
+  selectedTheme: ActiveRoundTheme;
+  submittedEntries?: string[];
+  invalidEntries?: string[];
   resolution: "liar-resolved" | "conceded";
 };
 
@@ -110,9 +130,9 @@ export type ChallengeState = {
   challengerPlayerId: string;
   responderPlayerId: string;
   requiredCount: number;
-  requiredType: PokemonType;
-  submittedPokemons: string[];
-  invalidPokemons?: string[];
+  theme: ActiveRoundTheme;
+  submittedEntries: string[];
+  invalidEntries?: string[];
 };
 
 export type GameState = {
@@ -125,8 +145,8 @@ export type GameState = {
   history: HistoryEntry[];
   coinFlipResult: CoinSide;
   coinFlipWinnerPlayerId: string;
-  themeOptions: PokemonType[];
-  selectedThemeType?: PokemonType;
+  themeOptions: ThemeNode[];
+  selectedTheme?: ActiveRoundTheme;
   challenge?: ChallengeState;
   roundResult?: RoundResult;
 };
@@ -145,7 +165,7 @@ export type SelectThemePayload = {
   action: "select_theme";
   gameId: string;
   playerId: string;
-  selectedThemeType: PokemonType;
+  selectedThemeId: string;
 };
 
 export type SubmitBidPayload = {
@@ -153,7 +173,6 @@ export type SubmitBidPayload = {
   gameId: string;
   playerId: string;
   count: number;
-  pokemonType: PokemonType;
 };
 
 export type CallLiarPayload = {
@@ -166,7 +185,7 @@ export type SubmitChallengeResponsePayload = {
   action: "submit_challenge_response";
   gameId: string;
   playerId: string;
-  pokemons: string[];
+  entries: string[];
 };
 
 export type ConcedeVictoryPayload = {

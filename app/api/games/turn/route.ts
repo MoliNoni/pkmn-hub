@@ -37,7 +37,7 @@ function isLocalTurnRequest(body: unknown): body is LocalTurnRequest {
     return (
       typeof body.gameId === "string" &&
       typeof body.playerId === "string" &&
-      typeof body.selectedThemeType === "string"
+      typeof body.selectedThemeId === "string"
     );
   }
 
@@ -45,8 +45,7 @@ function isLocalTurnRequest(body: unknown): body is LocalTurnRequest {
     return (
       typeof body.gameId === "string" &&
       typeof body.playerId === "string" &&
-      typeof body.count === "number" &&
-      typeof body.pokemonType === "string"
+      typeof body.count === "number"
     );
   }
 
@@ -58,8 +57,8 @@ function isLocalTurnRequest(body: unknown): body is LocalTurnRequest {
     return (
       typeof body.gameId === "string" &&
       typeof body.playerId === "string" &&
-      Array.isArray(body.pokemons) &&
-      body.pokemons.every((pokemon) => typeof pokemon === "string")
+      Array.isArray(body.entries) &&
+      body.entries.every((entry) => typeof entry === "string")
     );
   }
 
@@ -84,10 +83,10 @@ export async function POST(request: Request) {
     }
 
     if (body.action === "select_theme") {
-      const gameState = selectRoundTheme(
+      const gameState = await selectRoundTheme(
         body.gameId,
         body.playerId,
-        body.selectedThemeType,
+        body.selectedThemeId,
       );
       return NextResponse.json(gameState);
     }
@@ -106,7 +105,7 @@ export async function POST(request: Request) {
       const gameState = await submitChallengeResponse({
         gameId: body.gameId,
         playerId: body.playerId,
-        pokemons: body.pokemons,
+        entries: body.entries,
       });
 
       return NextResponse.json(gameState);

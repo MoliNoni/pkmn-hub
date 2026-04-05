@@ -1,10 +1,10 @@
 import { initializePlayers, resolveCoinFlip } from "@/core/gameEngine";
-import { POKEMON_TYPES } from "@/types/types";
+import { getThemeCatalog } from "@/games/mentiroso/themeEngine";
 import type {
   HistoryEntry,
   LocalPlayerInput,
   Player,
-  PokemonType,
+  ThemeNode,
 } from "@/types/types";
 
 export function createId(prefix: string): string {
@@ -19,8 +19,8 @@ export function createHistoryEntry(message: string): HistoryEntry {
   };
 }
 
-export function getThemeCandidates(): PokemonType[] {
-  return [...POKEMON_TYPES];
+export function getThemeCandidates(): ThemeNode[] {
+  return getThemeCatalog();
 }
 
 export function buildPlayers(playerInputs: [LocalPlayerInput, LocalPlayerInput]): {

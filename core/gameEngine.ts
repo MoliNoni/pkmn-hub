@@ -1,11 +1,11 @@
 import { validateClaim } from "@/games/mentiroso/gameLogic";
 import type {
+  ActiveRoundTheme,
   Bid,
   Claim,
   CoinSide,
   GameResult,
   Player,
-  PokemonType,
   RoundResult,
   Turn,
 } from "@/types/types";
@@ -85,27 +85,6 @@ export function resolveCoinFlip(
   };
 }
 
-// Picks theme options and the selected theme for the current round.
-export function assignTypeTheme(
-  availableTypes: PokemonType[],
-  selectedThemeType?: PokemonType,
-): {
-  themeOptions: PokemonType[];
-  selectedThemeType: PokemonType;
-} {
-  const themeOptions = [...availableTypes];
-  const fallbackTheme = themeOptions[0] ?? "normal";
-  const resolvedTheme =
-    selectedThemeType && themeOptions.includes(selectedThemeType)
-      ? selectedThemeType
-      : fallbackTheme;
-
-  return {
-    themeOptions,
-    selectedThemeType: resolvedTheme,
-  };
-}
-
 // Builds the initial turn object shared by local round logic.
 export function createInitialTurn(startingPlayerId: string): Turn {
   return {
@@ -155,9 +134,9 @@ export function resolveLiarChallenge(params: {
   challengerId: string;
   lastBid: Bid;
   actualCount: number;
-  selectedThemeType: PokemonType;
-  submittedPokemons?: string[];
-  invalidPokemons?: string[];
+  selectedTheme: ActiveRoundTheme;
+  submittedEntries?: string[];
+  invalidEntries?: string[];
   resolution?: "liar-resolved" | "conceded";
 }): RoundResult {
   const wasLiarCallSuccessful = params.actualCount < params.lastBid.count;
@@ -176,9 +155,9 @@ export function resolveLiarChallenge(params: {
     actualCount: params.actualCount,
     wasLiarCallSuccessful,
     pointAwardedTo: winnerPlayerId,
-    selectedThemeType: params.selectedThemeType,
-    submittedPokemons: params.submittedPokemons,
-    invalidPokemons: params.invalidPokemons,
+    selectedTheme: params.selectedTheme,
+    submittedEntries: params.submittedEntries,
+    invalidEntries: params.invalidEntries,
     resolution: params.resolution ?? "liar-resolved",
   };
 }

@@ -1,5 +1,5 @@
-import { assignTypeTheme, createInitialTurn } from "@/core/gameEngine";
-import type { GameState, LocalPlayerInput, PokemonType } from "@/types/types";
+import { createInitialTurn } from "@/core/gameEngine";
+import type { GameState, LocalPlayerInput } from "@/types/types";
 
 import {
   buildPlayers,
@@ -9,6 +9,7 @@ import {
   resolveOpeningState,
 } from "@/games/mentiroso/localGameHelpers";
 import { getGameOrThrow, saveGame } from "@/games/mentiroso/localGameStore";
+import { createRoundTheme } from "@/games/mentiroso/themeEngine";
 
 export function createLocalMentirosoGame(
   playerInputs: [LocalPlayerInput, LocalPlayerInput],
@@ -51,11 +52,11 @@ export function createLocalMentirosoGame(
   return gameState;
 }
 
-export function selectRoundTheme(
+export async function selectRoundTheme(
   gameId: string,
   playerId: string,
-  selectedThemeType: PokemonType,
-): GameState {
+  selectedThemeId: string,
+): Promise<GameState> {
   const game = getGameOrThrow(gameId);
 
   if (game.status !== "waiting-theme") {
@@ -66,16 +67,13 @@ export function selectRoundTheme(
     throw new Error("Solo quien gano la moneda puede elegir el tema.");
   }
 
-  const { selectedThemeType: resolvedTheme } = assignTypeTheme(
-    game.themeOptions,
-    selectedThemeType,
-  );
+  const resolvedTheme = await createRoundTheme(selectedThemeId);
   const themePicker = game.players.find((player) => player.id === playerId);
 
   const nextState: GameState = {
     ...game,
     status: "in-progress",
-    selectedThemeType: resolvedTheme,
+    selectedTheme: resolvedTheme,
     turn: {
       ...game.turn,
       phase: "bidding",
@@ -84,7 +82,7 @@ export function selectRoundTheme(
     history: [
       ...game.history,
       createHistoryEntry(
-        `${themePicker?.name ?? "Jugador"} eligio el tema ${resolvedTheme}.`,
+        `${themePicker?.name ?? "Jugador"} eligio el tema ${resolvedTheme.label}.`,
       ),
     ],
   };

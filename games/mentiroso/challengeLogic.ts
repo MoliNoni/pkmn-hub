@@ -1,13 +1,22 @@
 import { getNextPlayerId, resolveLiarChallenge } from "@/core/gameEngine";
-import {
-  getDynamicPokemonFrequencyScore,
-  getPokemonByName,
-  sanitizePokemonNames,
-} from "@/services/pokemonService";
-import type { GameState } from "@/types/types";
-
+import { validateThemeEntry } from "@/games/mentiroso/themeEngine";
 import { createHistoryEntry } from "@/games/mentiroso/localGameHelpers";
 import { getGameOrThrow, saveGame } from "@/games/mentiroso/localGameStore";
+import { sanitizeDexEntryNames } from "@/services/pokeApiDex";
+import { getDynamicPokemonFrequencyScore } from "@/services/pokemonService";
+import type { GameState, ThemeEntityKind } from "@/types/types";
+
+function getEntityLabel(entityKind: ThemeEntityKind): string {
+  if (entityKind === "item") {
+    return "item";
+  }
+
+  if (entityKind === "move") {
+    return "movimiento";
+  }
+
+  return "Pokemon";
+}
 
 export async function callLiar(
   gameId: string,
@@ -29,6 +38,11 @@ export async function callLiar(
     throw new Error("Todavia no hay apuesta para desafiar.");
   }
 
+  if (!game.selectedTheme) {
+    throw new Error("La ronda no tiene un tema activo.");
+  }
+
+  const entityLabel = getEntityLabel(game.selectedTheme.entityKind);
   const nextState: GameState = {
     ...game,
     status: "challenge-response",
@@ -36,8 +50,8 @@ export async function callLiar(
       challengerPlayerId: playerId,
       responderPlayerId: lastBid.playerId,
       requiredCount: lastBid.count,
-      requiredType: game.selectedThemeType ?? lastBid.pokemonType,
-      submittedPokemons: [],
+      theme: game.selectedTheme,
+      submittedEntries: [],
     },
     turn: {
       ...game.turn,
@@ -47,7 +61,7 @@ export async function callLiar(
     history: [
       ...game.history,
       createHistoryEntry(
-        `${game.players.find((player) => player.id === playerId)?.name ?? "Jugador"} canta Mentiroso. ${lastBid.playerName} debe escribir ${lastBid.count} Pokemon tipo ${game.selectedThemeType ?? lastBid.pokemonType}.`,
+        `${game.players.find((player) => player.id === playerId)?.name ?? "Jugador"} canta Mentiroso. ${lastBid.playerName} debe escribir ${lastBid.count} ${entityLabel}(s) que cumplan: ${game.selectedTheme.label}.`,
       ),
     ],
   };
@@ -57,9 +71,9 @@ export async function callLiar(
 }
 
 export async function submitChallengeResponse(params: {
+  entries: string[];
   gameId: string;
   playerId: string;
-  pokemons: string[];
 }): Promise<GameState> {
   const game = getGameOrThrow(params.gameId);
 
@@ -71,23 +85,13 @@ export async function submitChallengeResponse(params: {
     throw new Error("Solo el jugador desafiado puede responder.");
   }
 
-  const cleanedPokemons = sanitizePokemonNames(params.pokemons);
-  const existingPokemons = game.challenge.submittedPokemons;
+  const cleanedEntries = sanitizeDexEntryNames(params.entries);
+  const existingEntries = game.challenge.submittedEntries;
+  const entityLabel = getEntityLabel(game.challenge.theme.entityKind);
 
-  if (!cleanedPokemons.length) {
-    throw new Error("Debes escribir al menos un Pokemon valido.");
+  if (!cleanedEntries.length) {
+    throw new Error(`Debes escribir al menos un ${entityLabel} valido.`);
   }
-
-  const incomingPokemonEntries = await Promise.all(
-    cleanedPokemons.map(async (pokemonName) => ({
-      submittedName: pokemonName,
-      pokemon: await getPokemonByName(pokemonName),
-    })),
-  );
-
-  const unrecognizedPokemons = incomingPokemonEntries
-    .filter(({ pokemon }) => !pokemon)
-    .map(({ submittedName }) => submittedName);
 
   const lastBid = game.bids.at(-1);
 
@@ -95,28 +99,24 @@ export async function submitChallengeResponse(params: {
     throw new Error("No hay apuesta para resolver.");
   }
 
-  if (unrecognizedPokemons.length) {
-    throw new Error(
-      `Entrada no reconocida: ${unrecognizedPokemons.join(", ")}.`,
-    );
-  }
+  const validationEntries = await Promise.all(
+    cleanedEntries.map(async (entryName) => ({
+      isValid: await validateThemeEntry(game.challenge!.theme, entryName),
+      submittedName: entryName,
+    })),
+  );
+  const invalidEntries = validationEntries
+    .filter((entry) => !entry.isValid)
+    .map((entry) => entry.submittedName);
 
-  const wrongTypePokemons = incomingPokemonEntries
-    .filter(
-      ({ pokemon }) =>
-        pokemon !== null &&
-        !pokemon.types.includes(game.challenge.requiredType),
-    )
-    .map(({ submittedName }) => submittedName);
-
-  if (wrongTypePokemons.length) {
+  if (invalidEntries.length) {
     const roundResult = resolveLiarChallenge({
       challengerId: game.challenge.challengerPlayerId,
       lastBid,
-      actualCount: existingPokemons.length,
-      selectedThemeType: game.challenge.requiredType,
-      submittedPokemons: [...existingPokemons, ...cleanedPokemons],
-      invalidPokemons: wrongTypePokemons,
+      actualCount: existingEntries.length,
+      selectedTheme: game.challenge.theme,
+      submittedEntries: [...existingEntries, ...cleanedEntries],
+      invalidEntries,
     });
 
     const players = game.players.map((player) =>
@@ -124,11 +124,9 @@ export async function submitChallengeResponse(params: {
         ? { ...player, points: player.points + 1 }
         : player,
     );
-
     const winner = players.find(
       (player) => player.id === roundResult.winnerPlayerId,
     );
-
     const failedState: GameState = {
       ...game,
       status: "round-ended",
@@ -142,10 +140,10 @@ export async function submitChallengeResponse(params: {
       history: [
         ...game.history,
         createHistoryEntry(
-          `${game.players.find((player) => player.id === params.playerId)?.name ?? "Jugador"} ingreso Pokemon fuera del tipo requerido: ${wrongTypePokemons.join(", ")}.`,
+          `${game.players.find((player) => player.id === params.playerId)?.name ?? "Jugador"} ingreso ${entityLabel}(s) invalidos para el tema: ${invalidEntries.join(", ")}.`,
         ),
         createHistoryEntry(
-          `${winner?.name ?? "Jugador"} gana el punto porque el reto se rompio por un Pokemon fuera del tipo.`,
+          `${winner?.name ?? "Jugador"} gana el punto porque el reto se rompio con una respuesta invalida.`,
         ),
       ],
     };
@@ -154,29 +152,26 @@ export async function submitChallengeResponse(params: {
     return failedState;
   }
 
-  const combinedPokemons = sanitizePokemonNames([
-    ...existingPokemons,
-    ...cleanedPokemons,
-  ]);
+  const combinedEntries = sanitizeDexEntryNames([...existingEntries, ...cleanedEntries]);
 
-  if (combinedPokemons.length > game.challenge.requiredCount) {
+  if (combinedEntries.length > game.challenge.requiredCount) {
     throw new Error(
-      `Te pasaste del limite. Llevas ${combinedPokemons.length}/${game.challenge.requiredCount}.`,
+      `Te pasaste del limite. Llevas ${combinedEntries.length}/${game.challenge.requiredCount}.`,
     );
   }
 
-  if (combinedPokemons.length < game.challenge.requiredCount) {
-    const pendingCount = game.challenge.requiredCount - combinedPokemons.length;
+  if (combinedEntries.length < game.challenge.requiredCount) {
+    const pendingCount = game.challenge.requiredCount - combinedEntries.length;
     const partialState: GameState = {
       ...game,
       challenge: {
         ...game.challenge,
-        submittedPokemons: combinedPokemons,
+        submittedEntries: combinedEntries,
       },
       history: [
         ...game.history,
         createHistoryEntry(
-          `${game.players.find((player) => player.id === params.playerId)?.name ?? "Jugador"} agrego ${cleanedPokemons.length} Pokemon. Va ${combinedPokemons.length}/${game.challenge.requiredCount}. Faltan ${pendingCount}.`,
+          `${game.players.find((player) => player.id === params.playerId)?.name ?? "Jugador"} agrego ${cleanedEntries.length} ${entityLabel}(s). Va ${combinedEntries.length}/${game.challenge.requiredCount}. Faltan ${pendingCount}.`,
         ),
       ],
     };
@@ -185,26 +180,23 @@ export async function submitChallengeResponse(params: {
     return partialState;
   }
 
-  const actualCount = combinedPokemons.length;
+  const actualCount = combinedEntries.length;
   const roundResult = resolveLiarChallenge({
     challengerId: game.challenge.challengerPlayerId,
     lastBid,
     actualCount,
-    selectedThemeType: game.challenge.requiredType,
-    submittedPokemons: combinedPokemons,
-    invalidPokemons: [],
+    selectedTheme: game.challenge.theme,
+    submittedEntries: combinedEntries,
+    invalidEntries: [],
   });
-
   const players = game.players.map((player) =>
     player.id === roundResult.pointAwardedTo
       ? { ...player, points: player.points + 1 }
       : player,
   );
-
   const winner = players.find((player) => player.id === roundResult.winnerPlayerId);
   const loser = players.find((player) => player.id === roundResult.loserPlayerId);
-  const scoreHint = getDynamicPokemonFrequencyScore(lastBid.pokemonType);
-
+  const scoreHint = getDynamicPokemonFrequencyScore(lastBid.themeLabel);
   const nextState: GameState = {
     ...game,
     status: "round-ended",
@@ -255,20 +247,17 @@ export function concedeVictory(params: {
     challengerId: game.challenge.challengerPlayerId,
     lastBid,
     actualCount: 0,
-    selectedThemeType: game.challenge.requiredType,
-    submittedPokemons: [],
-    invalidPokemons: [],
+    selectedTheme: game.challenge.theme,
+    submittedEntries: [],
+    invalidEntries: [],
     resolution: "conceded",
   });
-
   const players = game.players.map((player) =>
     player.id === roundResult.pointAwardedTo
       ? { ...player, points: player.points + 1 }
       : player,
   );
-
   const winner = players.find((player) => player.id === roundResult.winnerPlayerId);
-
   const nextState: GameState = {
     ...game,
     status: "round-ended",
