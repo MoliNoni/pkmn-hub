@@ -16,15 +16,12 @@ type SetupPlayer = {
   coinChoice: CoinSide;
 };
 
-type ThemePickerNodeProps = {
-  expandedRootId: string | null;
-  depth?: number;
-  hoveredPath: string[];
-  onRootToggle: (rootId: string) => void;
-  node: ThemeNode;
-  onHoverPathChange: (path: string[]) => void;
-  onSelect: (node: ThemeNode) => void;
-  path: string[];
+type ThemeMenuLevelProps = {
+  allNodes: ThemeNode[];
+  level: number;
+  nodes: ThemeNode[];
+  onNodeClick: (node: ThemeNode, level: number) => void;
+  openPath: string[];
   selectedThemeId: string | null;
 };
 
@@ -67,6 +64,38 @@ function findFirstSelectableThemeNode(nodes: ThemeNode[]): ThemeNode | null {
   return null;
 }
 
+function findThemeNodeByNodeId(nodes: ThemeNode[], nodeId: string): ThemeNode | null {
+  for (const node of nodes) {
+    if (node.id === nodeId) {
+      return node;
+    }
+
+    const nestedNode = findThemeNodeByNodeId(node.children, nodeId);
+
+    if (nestedNode) {
+      return nestedNode;
+    }
+  }
+
+  return null;
+}
+
+function findThemeNodeById(nodes: ThemeNode[], themeId: string): ThemeNode | null {
+  for (const node of nodes) {
+    if (node.themeTemplateId === themeId) {
+      return node;
+    }
+
+    const nestedNode = findThemeNodeById(node.children, themeId);
+
+    if (nestedNode) {
+      return nestedNode;
+    }
+  }
+
+  return null;
+}
+
 function findThemeNodePath(
   nodes: ThemeNode[],
   themeId: string,
@@ -89,20 +118,22 @@ function findThemeNodePath(
   return null;
 }
 
-function findThemeNodeById(nodes: ThemeNode[], themeId: string): ThemeNode | null {
-  for (const node of nodes) {
-    if (node.themeTemplateId === themeId) {
-      return node;
-    }
-
-    const nestedNode = findThemeNodeById(node.children, themeId);
-
-    if (nestedNode) {
-      return nestedNode;
-    }
+function getNodeChildrenAtPath(nodes: ThemeNode[], path: string[]): ThemeNode[] {
+  if (!path.length) {
+    return [];
   }
 
-  return null;
+  const currentNode = findThemeNodeByNodeId(nodes, path[0]);
+
+  if (!currentNode) {
+    return [];
+  }
+
+  if (path.length === 1) {
+    return currentNode.children;
+  }
+
+  return getNodeChildrenAtPath(currentNode.children, path.slice(1));
 }
 
 function getDefaultThemeParams(node: ThemeNode | null): ThemeParams {
@@ -129,89 +160,72 @@ function getEntityCopy(entityKind: ThemeEntityKind): {
   return { singular: "Pokemon", plural: "Pokemon" };
 }
 
-function ThemePickerNode({
-  expandedRootId,
-  depth = 0,
-  hoveredPath,
-  node,
-  onRootToggle,
-  onHoverPathChange,
-  onSelect,
-  path,
+function ThemeMenuLevel({
+  allNodes,
+  level,
+  nodes,
+  onNodeClick,
+  openPath,
   selectedThemeId,
-}: ThemePickerNodeProps) {
-  const isSelected = node.themeTemplateId === selectedThemeId;
-  const rootId = path[0] ?? null;
-  const isRoot = depth === 0;
-  const isRootExpanded = expandedRootId === rootId;
-  const isHovered = hoveredPath.every((segment, index) => path[index] === segment);
-  const showChildren = Boolean(
-    node.children.length &&
-      (isRoot ? isRootExpanded : isRootExpanded && isHovered),
-  );
-  const submenuPosition =
-    isRoot ? "bottom-full left-0 mb-2" : "bottom-0 left-full ml-1";
+}: ThemeMenuLevelProps) {
+  if (!nodes.length) {
+    return null;
+  }
+
+  const wrapperClassName =
+    level === 0
+      ? "mt-5 flex flex-wrap items-start justify-center gap-3"
+      : "flex min-w-[18rem] flex-col gap-3 rounded-[1.2rem] border border-white/10 bg-[#180814]/95 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)]";
 
   return (
-    <div
-      className="relative"
-      onMouseEnter={() => {
-        if (!isRoot) {
-          onHoverPathChange(path);
-        }
-      }}
-      onMouseLeave={() => {
-        if (!isRoot) {
-          onHoverPathChange(path.slice(0, -1));
-        }
-      }}
-    >
-      <button
-        type="button"
-        onClick={() => {
-          if (isRoot && node.children.length) {
-            onRootToggle(node.id);
-            return;
-          }
+    <div className={wrapperClassName}>
+      {nodes.map((node) => {
+        const isOpen = openPath[level] === node.id;
+        const isSelected = node.themeTemplateId === selectedThemeId;
+        const childNodes =
+          isOpen && node.children.length
+            ? getNodeChildrenAtPath(allNodes, [...openPath.slice(0, level), node.id])
+            : [];
+        const childWrapperClassName =
+          level === 0
+            ? "absolute bottom-full left-0 mb-3"
+            : "absolute left-full top-0 ml-3";
 
-          if (node.themeTemplateId) {
-            onSelect(node);
-          }
-        }}
-        className={`flex min-w-[15rem] items-center justify-between gap-3 rounded-[1.2rem] border px-4 py-3 text-left text-sm transition ${
-          isSelected
-            ? "border-amber-300 bg-amber-400/20 text-amber-100"
-            : "border-white/10 bg-white/8 text-white hover:border-white/25 hover:bg-white/12"
-        } ${node.themeTemplateId ? "cursor-pointer" : "cursor-default"}`}
-      >
-        <span>{node.label}</span>
-        {node.children.length ? (
-          <span className="text-xs uppercase tracking-[0.3em] text-white/45">
-            {isRoot ? "Mas" : "Sub"}
-          </span>
-        ) : null}
-      </button>
+        return (
+          <div key={node.id} className="relative">
+            <button
+              type="button"
+              onClick={() => onNodeClick(node, level)}
+              className={`flex min-h-[4.25rem] min-w-[15rem] items-center justify-between gap-3 rounded-[1.2rem] border px-4 py-3 text-left text-sm transition ${
+                isOpen || isSelected
+                  ? "border-amber-300 bg-amber-400/20 text-amber-100"
+                  : "border-white/10 bg-white/8 text-white hover:border-white/25 hover:bg-white/12"
+              }`}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-base text-white/65">▸</span>
+                <span>{node.label}</span>
+              </div>
+              {node.children.length ? (
+                <span className="text-xs text-white/55">▸</span>
+              ) : null}
+            </button>
 
-      {showChildren ? (
-        <div
-          className={`absolute ${submenuPosition} z-20 flex max-h-[26rem] min-w-[16rem] flex-col gap-2 overflow-y-auto rounded-[1.2rem] border border-white/10 bg-[#180814]/95 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)]`}
-        >
-          {node.children.map((childNode) => (
-            <ThemePickerNode
-              expandedRootId={expandedRootId}
-              key={childNode.id}
-              depth={depth + 1}
-              hoveredPath={hoveredPath}
-              node={childNode}
-              onRootToggle={onRootToggle}
-              onHoverPathChange={onHoverPathChange}
-              onSelect={onSelect}
-              path={[...path, childNode.id]}
-              selectedThemeId={selectedThemeId}
-            />
-          ))}
-        </div>
-      ) : null}
+            {childNodes.length ? (
+              <div className={childWrapperClassName}>
+                <ThemeMenuLevel
+                  allNodes={allNodes}
+                  level={level + 1}
+                  nodes={childNodes}
+                  onNodeClick={onNodeClick}
+                  openPath={openPath}
+                  selectedThemeId={selectedThemeId}
+                />
+              </div>
+            ) : null}
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -266,8 +280,7 @@ export default function LocalGameBoard() {
   const [bidCount, setBidCount] = useState("1");
   const [themeChoice, setThemeChoice] = useState<string | null>(null);
   const [themeParams, setThemeParams] = useState<ThemeParams>({});
-  const [expandedRootId, setExpandedRootId] = useState<string | null>(null);
-  const [hoveredThemePath, setHoveredThemePath] = useState<string[]>([]);
+  const [openThemePath, setOpenThemePath] = useState<string[]>([]);
   const [challengeInput, setChallengeInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -340,19 +353,28 @@ export default function LocalGameBoard() {
     setThemeParams(getDefaultThemeParams(node));
   }
 
+  function handleThemeMenuClick(node: ThemeNode, level: number): void {
+    setOpenThemePath((currentPath) => {
+      const isSameNode = currentPath[level] === node.id;
+      const nextPath = currentPath.slice(0, level);
+
+      if (isSameNode) {
+        return nextPath;
+      }
+
+      return [...nextPath, node.id];
+    });
+
+    if (node.themeTemplateId) {
+      handleThemeNodeSelection(node);
+    }
+  }
+
   function updateThemeParam(key: string, value: string): void {
     setThemeParams((currentParams) => ({
       ...currentParams,
       [key]: value,
     }));
-  }
-
-  function toggleRootCategory(rootId: string): void {
-    setExpandedRootId((currentRootId) => {
-      const nextRootId = currentRootId === rootId ? null : rootId;
-      setHoveredThemePath(nextRootId ? [nextRootId] : []);
-      return nextRootId;
-    });
   }
 
   async function handleCreateGame() {
@@ -369,8 +391,7 @@ export default function LocalGameBoard() {
       setGameState(nextGameState);
       setThemeChoice(initialThemeNode?.themeTemplateId ?? null);
       setThemeParams(getDefaultThemeParams(initialThemeNode));
-      setExpandedRootId(null);
-      setHoveredThemePath([]);
+      setOpenThemePath([]);
       setBidCount("1");
       setChallengeInput("");
     } catch (createError) {
@@ -717,23 +738,15 @@ export default function LocalGameBoard() {
                     categoria principal para desplegar sus subcategorias.
                   </p>
 
-                  <div
-                    className="relative mt-5 flex flex-wrap items-start justify-center gap-3"
-                    onMouseLeave={() => setHoveredThemePath([])}
-                  >
-                    {gameState.themeOptions.map((node) => (
-                      <ThemePickerNode
-                        expandedRootId={expandedRootId}
-                        key={node.id}
-                        hoveredPath={hoveredThemePath}
-                        node={node}
-                        onRootToggle={toggleRootCategory}
-                        onHoverPathChange={setHoveredThemePath}
-                        onSelect={handleThemeNodeSelection}
-                        path={[node.id]}
-                        selectedThemeId={themeChoice}
-                      />
-                    ))}
+                  <div className="relative">
+                    <ThemeMenuLevel
+                      allNodes={gameState.themeOptions}
+                      level={0}
+                      nodes={gameState.themeOptions}
+                      onNodeClick={handleThemeMenuClick}
+                      openPath={openThemePath}
+                      selectedThemeId={themeChoice}
+                    />
                   </div>
 
                   <div className="mt-5 rounded-[1.2rem] border border-white/10 bg-white/6 px-4 py-4 text-left text-sm text-white/85">
