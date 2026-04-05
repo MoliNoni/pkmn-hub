@@ -105,7 +105,6 @@ export type PokemonDexEntry = {
     chainId: number;
     speciesName: string;
     speciesInChain: string[];
-    evolvesToCount: number;
     changesType: boolean;
     spansDifferentGenerations: boolean;
     hasAbilityVariation: boolean;
@@ -290,19 +289,6 @@ function flattenEvolutionChain(
   return snapshots;
 }
 
-function collectDescendants(
-  speciesName: string,
-  nodeMap: Map<string, EvolutionNodeSnapshot>,
-): string[] {
-  const node = nodeMap.get(speciesName);
-
-  if (!node) {
-    return [];
-  }
-
-  return node.children.flatMap((child) => [child, ...collectDescendants(child, nodeMap)]);
-}
-
 function getEvolutionMethodFlags(
   nodes: EvolutionNodeSnapshot[],
 ): PokemonDexEntry["evolution"]["methods"] {
@@ -362,9 +348,7 @@ async function buildPokemonDexEntry(name: string): Promise<PokemonDexEntry | nul
   }
 
   const nodes = flattenEvolutionChain(evolutionChain.chain);
-  const nodeMap = new Map(nodes.map((node) => [node.speciesName, node]));
   const chainSpecies = nodes.map((node) => node.speciesName);
-  const descendants = collectDescendants(species.name, nodeMap);
   const branching = nodes.some((node) => node.children.length > 1);
   const methods = getEvolutionMethodFlags(nodes);
   const chainSpeciesDetails = await Promise.all(
@@ -429,7 +413,6 @@ async function buildPokemonDexEntry(name: string): Promise<PokemonDexEntry | nul
       chainId: evolutionChain.id,
       speciesName: species.name,
       speciesInChain: chainSpecies,
-      evolvesToCount: descendants.length,
       changesType: typeSignatures.size > 1,
       spansDifferentGenerations: generations.size > 1,
       hasAbilityVariation: abilitySignatures.size > 1,

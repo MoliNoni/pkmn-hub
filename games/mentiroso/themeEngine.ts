@@ -55,8 +55,6 @@ const GENERATION_OPTIONS: ThemeInputDefinition["options"] = GENERATIONS.map(
 const LETTERS = "abcdefghijklmnopqrstuvwxyz".split("");
 const MOVE_POWER_THRESHOLDS = [40, 60, 80, 100];
 const MOVE_ACCURACY_THRESHOLDS = [70, 85, 100];
-const EVOLUTION_COUNTS = [1, 2, 3];
-
 function pickRandom<T>(items: readonly T[]): T {
   return items[Math.floor(Math.random() * items.length)] ?? items[0];
 }
@@ -114,11 +112,6 @@ const themeCatalog: ThemeNode[] = buildSimpleThemeTree([
             id: "pokemon-evolution-mega",
             label: "Puede megaevolucionar",
             themeTemplateId: "pokemon-evolution-mega",
-          },
-          {
-            id: "pokemon-evolution-exact-count",
-            label: "Tiene exactamente X evoluciones",
-            themeTemplateId: "pokemon-evolution-exact-count",
           },
           {
             id: "pokemon-evolution-convergent",
@@ -381,24 +374,6 @@ const templates: ThemeTemplate[] = [
     matches: async (_theme, entryName) =>
       (await getDexEntryByName("pokemon", entryName))?.evolution.hasMegaEvolution ??
       false,
-  },
-  {
-    id: "pokemon-evolution-exact-count",
-    label: "Tiene exactamente X evoluciones",
-    entityKind: "pokemon",
-    path: ["Pokemon", "Evolucion"],
-    instantiate: async () => {
-      const count = pickRandom(EVOLUTION_COUNTS);
-
-      return {
-        label: `Pokemon con exactamente ${count} evolucion(es) restante(s)`,
-        description: `Pokemon cuya especie puede alcanzar exactamente ${count} evolucion(es) desde su punto actual.`,
-        params: { count },
-      };
-    },
-    matches: async (theme, entryName) =>
-      (await getDexEntryByName("pokemon", entryName))?.evolution.evolvesToCount ===
-      Number(theme.params.count),
   },
   {
     id: "pokemon-evolution-convergent",
