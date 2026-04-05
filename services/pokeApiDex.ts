@@ -161,9 +161,23 @@ type EvolutionNodeSnapshot = {
 const dexCache = new Map<string, DexEntryByKind[ThemeEntityKind] | null>();
 const namedListCache = new Map<string, string[]>();
 const machineTypeCache = new Map<string, string | null>();
+const REGIONAL_FORM_GENERATIONS: Record<string, string> = {
+  alola: "generation-vii",
+  galar: "generation-viii",
+  hisui: "generation-viii",
+  paldea: "generation-ix",
+};
 
 function normalizeName(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+function getRegionalFormGeneration(name: string): string | null {
+  const regionalSuffix = Object.keys(REGIONAL_FORM_GENERATIONS).find((suffix) =>
+    name.endsWith(`-${suffix}`),
+  );
+
+  return regionalSuffix ? REGIONAL_FORM_GENERATIONS[regionalSuffix] : null;
 }
 
 function formatDisplayName(value: string): string {
@@ -382,6 +396,15 @@ async function buildPokemonDexEntry(name: string): Promise<PokemonDexEntry | nul
   const generations = new Set(
     chainSpeciesDetails.map((entry) => entry.generation).filter(Boolean),
   );
+  chainSpeciesDetails.forEach((entry) => {
+    entry.speciesData?.varieties.forEach((variant) => {
+      const regionalGeneration = getRegionalFormGeneration(variant.pokemon.name);
+
+      if (regionalGeneration) {
+        generations.add(regionalGeneration);
+      }
+    });
+  });
   const hasMegaEvolution = chainSpeciesDetails.some((entry) =>
     entry.speciesData?.varieties.some((variant) => variant.pokemon.name.includes("-mega")),
   );
@@ -533,4 +556,8 @@ export async function getPokemonNames(): Promise<string[]> {
 
 export function sanitizeDexEntryNames(names: string[]): string[] {
   return [...new Set(names.map(normalizeName).filter(Boolean))];
+}
+
+export function normalizeDexEntryName(name: string): string {
+  return normalizeName(name);
 }

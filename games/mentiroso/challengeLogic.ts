@@ -1,8 +1,8 @@
 import { getNextPlayerId, resolveLiarChallenge } from "@/core/gameEngine";
+import { validateChallengeEntries } from "@/games/mentiroso/challengeEntryValidation";
 import { validateThemeEntry } from "@/games/mentiroso/themeEngine";
 import { createHistoryEntry } from "@/games/mentiroso/localGameHelpers";
 import { getGameOrThrow, saveGame } from "@/games/mentiroso/localGameStore";
-import { sanitizeDexEntryNames } from "@/services/pokeApiDex";
 import { getDynamicPokemonFrequencyScore } from "@/services/pokemonService";
 import type { GameState, ThemeEntityKind } from "@/types/types";
 
@@ -85,9 +85,14 @@ export async function submitChallengeResponse(params: {
     throw new Error("Solo el jugador desafiado puede responder.");
   }
 
-  const cleanedEntries = sanitizeDexEntryNames(params.entries);
   const existingEntries = game.challenge.submittedEntries;
   const entityLabel = getEntityLabel(game.challenge.theme.entityKind);
+
+  const cleanedEntries = await validateChallengeEntries({
+    existingEntries,
+    incomingEntries: params.entries,
+    theme: game.challenge.theme,
+  });
 
   if (!cleanedEntries.length) {
     throw new Error(`Debes escribir al menos un ${entityLabel} valido.`);
@@ -152,7 +157,7 @@ export async function submitChallengeResponse(params: {
     return failedState;
   }
 
-  const combinedEntries = sanitizeDexEntryNames([...existingEntries, ...cleanedEntries]);
+  const combinedEntries = [...existingEntries, ...cleanedEntries];
 
   if (combinedEntries.length > game.challenge.requiredCount) {
     throw new Error(
