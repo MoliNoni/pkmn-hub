@@ -648,9 +648,6 @@ export default function LocalGameBoard() {
                 <span className="mt-3 text-center text-2xl font-semibold uppercase leading-tight tracking-[0.08em] text-white sm:text-3xl">
                   {activeTheme?.label ?? "Pendiente"}
                 </span>
-                <span className="mt-3 text-sm text-white/80">
-                  {activeTheme?.description ?? "Selecciona un tema para empezar"}
-                </span>
               </div>
 
               <div className="relative h-[8px] bg-black">
