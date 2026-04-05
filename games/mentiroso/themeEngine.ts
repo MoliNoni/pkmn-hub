@@ -2,6 +2,7 @@ import { POKEMON_TYPES } from "@/types/types";
 import type {
   ActiveRoundTheme,
   ThemeEntityKind,
+  ThemeInputDefinition,
   ThemeNode,
   ThemeParams,
 } from "@/types/types";
@@ -14,10 +15,11 @@ import {
 
 type ThemeTemplate = {
   id: string;
+  inputDefinitions?: ThemeInputDefinition[];
   label: string;
   entityKind: ThemeEntityKind;
   path: string[];
-  instantiate: () => Promise<{
+  instantiate: (params: ThemeParams) => Promise<{
     description: string;
     label: string;
     params: ThemeParams;
@@ -28,6 +30,7 @@ type ThemeTemplate = {
 type ThemeCatalogInputNode = {
   children?: ThemeCatalogInputNode[];
   id: string;
+  inputDefinitions?: ThemeInputDefinition[];
   label: string;
   themeTemplateId?: string;
 };
@@ -43,6 +46,12 @@ const GENERATIONS = [
   "generation-viii",
   "generation-ix",
 ] as const;
+const GENERATION_OPTIONS: ThemeInputDefinition["options"] = GENERATIONS.map(
+  (generation) => ({
+    label: formatDisplayName(generation),
+    value: generation,
+  }),
+);
 const LETTERS = "abcdefghijklmnopqrstuvwxyz".split("");
 const MOVE_POWER_THRESHOLDS = [40, 60, 80, 100];
 const MOVE_ACCURACY_THRESHOLDS = [70, 85, 100];
@@ -70,6 +79,7 @@ function getNodeLabel(path: string[], label: string): string {
 function buildSimpleThemeTree(input: ThemeCatalogInputNode[]): ThemeNode[] {
   return input.map((node) => ({
     id: node.id,
+    inputDefinitions: node.inputDefinitions,
     label: node.label,
     themeTemplateId: node.themeTemplateId,
     children: buildSimpleThemeTree(node.children ?? []),
@@ -147,13 +157,7 @@ const themeCatalog: ThemeNode[] = buildSimpleThemeTree([
         id: "pokemon-ability",
         label: "Habilidad",
         themeTemplateId: "pokemon-ability",
-        children: [
-          {
-            id: "pokemon-hidden-ability",
-            label: "Tiene habilidad oculta",
-            themeTemplateId: "pokemon-hidden-ability",
-          },
-        ],
+        children: [],
       },
       {
         id: "pokemon-generation",
@@ -161,6 +165,15 @@ const themeCatalog: ThemeNode[] = buildSimpleThemeTree([
         children: [
           {
             id: "pokemon-generation-type",
+            inputDefinitions: [
+              {
+                key: "generation",
+                label: "Generacion",
+                options: GENERATION_OPTIONS,
+                placeholder: "Selecciona una generacion",
+                type: "select",
+              },
+            ],
             label: "Tipo",
             themeTemplateId: "pokemon-generation-type",
           },
@@ -172,6 +185,15 @@ const themeCatalog: ThemeNode[] = buildSimpleThemeTree([
         children: [
           {
             id: "pokemon-type-generation",
+            inputDefinitions: [
+              {
+                key: "generation",
+                label: "Generacion",
+                options: GENERATION_OPTIONS,
+                placeholder: "Selecciona una generacion",
+                type: "select",
+              },
+            ],
             label: "Generacion",
             themeTemplateId: "pokemon-type-generation",
           },
@@ -188,16 +210,43 @@ const themeCatalog: ThemeNode[] = buildSimpleThemeTree([
         children: [
           {
             id: "pokemon-name-contains-letter",
+            inputDefinitions: [
+              {
+                key: "letter",
+                label: "Letra",
+                max: 1,
+                placeholder: "Ejemplo: p",
+                type: "text",
+              },
+            ],
             label: "Tiene X letra",
             themeTemplateId: "pokemon-name-contains-letter",
           },
           {
             id: "pokemon-name-starts-letter",
+            inputDefinitions: [
+              {
+                key: "letter",
+                label: "Letra",
+                max: 1,
+                placeholder: "Ejemplo: p",
+                type: "text",
+              },
+            ],
             label: "Empieza por X letra",
             themeTemplateId: "pokemon-name-starts-letter",
           },
           {
             id: "pokemon-name-ends-letter",
+            inputDefinitions: [
+              {
+                key: "letter",
+                label: "Letra",
+                max: 1,
+                placeholder: "Ejemplo: u",
+                type: "text",
+              },
+            ],
             label: "Termina por X letra",
             themeTemplateId: "pokemon-name-ends-letter",
           },
@@ -446,27 +495,26 @@ const templates: ThemeTemplate[] = [
     },
   },
   {
-    id: "pokemon-hidden-ability",
-    label: "Tiene habilidad oculta",
-    entityKind: "pokemon",
-    path: ["Pokemon", "Habilidad"],
-    instantiate: async () => ({
-      label: "Pokemon con habilidad oculta",
-      description: "Pokemon que cuentan con al menos una habilidad oculta.",
-      params: {},
-    }),
-    matches: async (_theme, entryName) =>
-      ((await getDexEntryByName("pokemon", entryName))?.hiddenAbilities.length ?? 0) >
-      0,
-  },
-  {
     id: "pokemon-generation-type",
     label: "Tipo",
     entityKind: "pokemon",
     path: ["Pokemon", "Generacion"],
-    instantiate: async () => {
-      const generation = pickRandom(GENERATIONS);
+    inputDefinitions: [
+      {
+        key: "generation",
+        label: "Generacion",
+        options: GENERATION_OPTIONS,
+        placeholder: "Selecciona una generacion",
+        type: "select",
+      },
+    ],
+    instantiate: async (params) => {
+      const generation = String(params.generation ?? "").trim().toLowerCase();
       const type = pickRandom(POKEMON_TYPES);
+
+      if (!GENERATIONS.includes(generation as (typeof GENERATIONS)[number])) {
+        throw new Error("Debes elegir una generacion valida.");
+      }
 
       return {
         label: `Pokemon de ${formatDisplayName(generation)} y tipo ${formatDisplayName(type)}`,
@@ -488,9 +536,22 @@ const templates: ThemeTemplate[] = [
     label: "Generacion",
     entityKind: "pokemon",
     path: ["Pokemon", "Tipo"],
-    instantiate: async () => {
-      const generation = pickRandom(GENERATIONS);
+    inputDefinitions: [
+      {
+        key: "generation",
+        label: "Generacion",
+        options: GENERATION_OPTIONS,
+        placeholder: "Selecciona una generacion",
+        type: "select",
+      },
+    ],
+    instantiate: async (params) => {
+      const generation = String(params.generation ?? "").trim().toLowerCase();
       const type = pickRandom(POKEMON_TYPES);
+
+      if (!GENERATIONS.includes(generation as (typeof GENERATIONS)[number])) {
+        throw new Error("Debes elegir una generacion valida.");
+      }
 
       return {
         label: `Pokemon tipo ${formatDisplayName(type)} de ${formatDisplayName(generation)}`,
@@ -530,8 +591,24 @@ const templates: ThemeTemplate[] = [
     label: "Tiene X letra",
     entityKind: "pokemon",
     path: ["Pokemon", "Nombre"],
-    instantiate: async () => {
-      const letter = pickRandom(LETTERS);
+    inputDefinitions: [
+      {
+        key: "letter",
+        label: "Letra",
+        max: 1,
+        placeholder: "Ejemplo: p",
+        type: "text",
+      },
+    ],
+    instantiate: async (params) => {
+      const letter = String(params.letter ?? "")
+        .trim()
+        .toLowerCase()
+        .slice(0, 1);
+
+      if (!letter) {
+        throw new Error("Debes escribir una letra para este tema.");
+      }
 
       return {
         label: `Pokemon cuyo nombre contiene la letra ${letter.toUpperCase()}`,
@@ -547,8 +624,24 @@ const templates: ThemeTemplate[] = [
     label: "Empieza por X letra",
     entityKind: "pokemon",
     path: ["Pokemon", "Nombre"],
-    instantiate: async () => {
-      const letter = pickRandom(LETTERS);
+    inputDefinitions: [
+      {
+        key: "letter",
+        label: "Letra",
+        max: 1,
+        placeholder: "Ejemplo: p",
+        type: "text",
+      },
+    ],
+    instantiate: async (params) => {
+      const letter = String(params.letter ?? "")
+        .trim()
+        .toLowerCase()
+        .slice(0, 1);
+
+      if (!letter) {
+        throw new Error("Debes escribir una letra para este tema.");
+      }
 
       return {
         label: `Pokemon cuyo nombre empieza por ${letter.toUpperCase()}`,
@@ -564,8 +657,24 @@ const templates: ThemeTemplate[] = [
     label: "Termina por X letra",
     entityKind: "pokemon",
     path: ["Pokemon", "Nombre"],
-    instantiate: async () => {
-      const letter = pickRandom(LETTERS);
+    inputDefinitions: [
+      {
+        key: "letter",
+        label: "Letra",
+        max: 1,
+        placeholder: "Ejemplo: u",
+        type: "text",
+      },
+    ],
+    instantiate: async (params) => {
+      const letter = String(params.letter ?? "")
+        .trim()
+        .toLowerCase()
+        .slice(0, 1);
+
+      if (!letter) {
+        throw new Error("Debes escribir una letra para este tema.");
+      }
 
       return {
         label: `Pokemon cuyo nombre termina por ${letter.toUpperCase()}`,
@@ -744,6 +853,7 @@ const templateMap = new Map(templates.map((template) => [template.id, template])
 function cloneThemeNodes(nodes: ThemeNode[]): ThemeNode[] {
   return nodes.map((node) => ({
     id: node.id,
+    inputDefinitions: node.inputDefinitions,
     label: node.label,
     themeTemplateId: node.themeTemplateId,
     children: cloneThemeNodes(node.children),
@@ -758,14 +868,17 @@ export function findThemeTemplateById(themeId: string): ThemeTemplate | null {
   return templateMap.get(normalizeThemeId(themeId)) ?? null;
 }
 
-export async function createRoundTheme(themeId: string): Promise<ActiveRoundTheme> {
+export async function createRoundTheme(
+  themeId: string,
+  params: ThemeParams = {},
+): Promise<ActiveRoundTheme> {
   const template = findThemeTemplateById(themeId);
 
   if (!template) {
     throw new Error("El tema seleccionado no existe.");
   }
 
-  const instance = await template.instantiate();
+  const instance = await template.instantiate(params);
 
   return {
     id: `${template.id}-${Math.random().toString(36).slice(2, 10)}`,

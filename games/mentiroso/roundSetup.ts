@@ -1,5 +1,5 @@
 import { createInitialTurn } from "@/core/gameEngine";
-import type { GameState, LocalPlayerInput } from "@/types/types";
+import type { GameState, LocalPlayerInput, ThemeParams } from "@/types/types";
 
 import {
   buildPlayers,
@@ -56,6 +56,7 @@ export async function selectRoundTheme(
   gameId: string,
   playerId: string,
   selectedThemeId: string,
+  selectedThemeParams: ThemeParams = {},
 ): Promise<GameState> {
   const game = getGameOrThrow(gameId);
 
@@ -67,7 +68,7 @@ export async function selectRoundTheme(
     throw new Error("Solo quien gano la moneda puede elegir el tema.");
   }
 
-  const resolvedTheme = await createRoundTheme(selectedThemeId);
+  const resolvedTheme = await createRoundTheme(selectedThemeId, selectedThemeParams);
   const themePicker = game.players.find((player) => player.id === playerId);
 
   const nextState: GameState = {

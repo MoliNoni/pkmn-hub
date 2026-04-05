@@ -48,12 +48,28 @@ export type Pokemon = {
 
 export type ThemeNode = {
   id: string;
+  inputDefinitions?: ThemeInputDefinition[];
   label: string;
   themeTemplateId?: string;
   children: ThemeNode[];
 };
 
 export type ThemeParams = Record<string, boolean | number | string>;
+
+export type ThemeInputOption = {
+  label: string;
+  value: string;
+};
+
+export type ThemeInputDefinition = {
+  key: string;
+  label: string;
+  max?: number;
+  min?: number;
+  options?: ThemeInputOption[];
+  placeholder?: string;
+  type: "number" | "select" | "text";
+};
 
 export type ActiveRoundTheme = {
   id: string;
@@ -166,6 +182,7 @@ export type SelectThemePayload = {
   gameId: string;
   playerId: string;
   selectedThemeId: string;
+  selectedThemeParams?: ThemeParams;
 };
 
 export type SubmitBidPayload = {

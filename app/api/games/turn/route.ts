@@ -37,7 +37,8 @@ function isLocalTurnRequest(body: unknown): body is LocalTurnRequest {
     return (
       typeof body.gameId === "string" &&
       typeof body.playerId === "string" &&
-      typeof body.selectedThemeId === "string"
+      typeof body.selectedThemeId === "string" &&
+      (body.selectedThemeParams === undefined || isObject(body.selectedThemeParams))
     );
   }
 
@@ -87,6 +88,7 @@ export async function POST(request: Request) {
         body.gameId,
         body.playerId,
         body.selectedThemeId,
+        body.selectedThemeParams,
       );
       return NextResponse.json(gameState);
     }

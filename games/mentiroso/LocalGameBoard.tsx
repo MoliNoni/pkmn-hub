@@ -2,7 +2,14 @@
 
 import { useMemo, useState } from "react";
 
-import type { CoinSide, GameState, ThemeEntityKind, ThemeNode } from "@/types/types";
+import type {
+  CoinSide,
+  GameState,
+  ThemeEntityKind,
+  ThemeInputDefinition,
+  ThemeNode,
+  ThemeParams,
+} from "@/types/types";
 
 type SetupPlayer = {
   name: string;
@@ -10,9 +17,14 @@ type SetupPlayer = {
 };
 
 type ThemePickerNodeProps = {
-  isRoot?: boolean;
+  expandedRootId: string | null;
+  depth?: number;
+  hoveredPath: string[];
+  onRootToggle: (rootId: string) => void;
   node: ThemeNode;
-  onSelect: (themeId: string) => void;
+  onHoverPathChange: (path: string[]) => void;
+  onSelect: (node: ThemeNode) => void;
+  path: string[];
   selectedThemeId: string | null;
 };
 
@@ -39,16 +51,16 @@ async function sendTurnRequest(body: unknown): Promise<GameState> {
   return data;
 }
 
-function findFirstSelectableThemeId(nodes: ThemeNode[]): string | null {
+function findFirstSelectableThemeNode(nodes: ThemeNode[]): ThemeNode | null {
   for (const node of nodes) {
     if (node.themeTemplateId) {
-      return node.themeTemplateId;
+      return node;
     }
 
-    const nestedThemeId = findFirstSelectableThemeId(node.children);
+    const nestedNode = findFirstSelectableThemeNode(node.children);
 
-    if (nestedThemeId) {
-      return nestedThemeId;
+    if (nestedNode) {
+      return nestedNode;
     }
   }
 
@@ -77,6 +89,31 @@ function findThemeNodePath(
   return null;
 }
 
+function findThemeNodeById(nodes: ThemeNode[], themeId: string): ThemeNode | null {
+  for (const node of nodes) {
+    if (node.themeTemplateId === themeId) {
+      return node;
+    }
+
+    const nestedNode = findThemeNodeById(node.children, themeId);
+
+    if (nestedNode) {
+      return nestedNode;
+    }
+  }
+
+  return null;
+}
+
+function getDefaultThemeParams(node: ThemeNode | null): ThemeParams {
+  const definitions = node?.inputDefinitions ?? [];
+
+  return definitions.reduce<ThemeParams>((params, definition) => {
+    params[definition.key] = "";
+    return params;
+  }, {});
+}
+
 function getEntityCopy(entityKind: ThemeEntityKind): {
   plural: string;
   singular: string;
@@ -93,31 +130,59 @@ function getEntityCopy(entityKind: ThemeEntityKind): {
 }
 
 function ThemePickerNode({
-  isRoot = false,
+  expandedRootId,
+  depth = 0,
+  hoveredPath,
   node,
+  onRootToggle,
+  onHoverPathChange,
   onSelect,
+  path,
   selectedThemeId,
 }: ThemePickerNodeProps) {
   const isSelected = node.themeTemplateId === selectedThemeId;
-  const canSelect = Boolean(node.themeTemplateId);
-  const submenuPosition = isRoot
-    ? "left-0 top-full mt-3"
-    : "left-full top-0 ml-3";
+  const rootId = path[0] ?? null;
+  const isRoot = depth === 0;
+  const isRootExpanded = expandedRootId === rootId;
+  const isHovered = hoveredPath.every((segment, index) => path[index] === segment);
+  const showChildren = Boolean(
+    node.children.length &&
+      (isRoot ? isRootExpanded : isRootExpanded && isHovered),
+  );
+  const submenuPosition =
+    isRoot ? "bottom-full left-0 mb-2" : "bottom-0 left-full ml-1";
 
   return (
-    <div className="group relative">
+    <div
+      className="relative"
+      onMouseEnter={() => {
+        if (!isRoot) {
+          onHoverPathChange(path);
+        }
+      }}
+      onMouseLeave={() => {
+        if (!isRoot) {
+          onHoverPathChange(path.slice(0, -1));
+        }
+      }}
+    >
       <button
         type="button"
         onClick={() => {
+          if (isRoot && node.children.length) {
+            onRootToggle(node.id);
+            return;
+          }
+
           if (node.themeTemplateId) {
-            onSelect(node.themeTemplateId);
+            onSelect(node);
           }
         }}
         className={`flex min-w-[15rem] items-center justify-between gap-3 rounded-[1.2rem] border px-4 py-3 text-left text-sm transition ${
           isSelected
             ? "border-amber-300 bg-amber-400/20 text-amber-100"
             : "border-white/10 bg-white/8 text-white hover:border-white/25 hover:bg-white/12"
-        } ${canSelect ? "cursor-pointer" : "cursor-default"}`}
+        } ${node.themeTemplateId ? "cursor-pointer" : "cursor-default"}`}
       >
         <span>{node.label}</span>
         {node.children.length ? (
@@ -127,15 +192,21 @@ function ThemePickerNode({
         ) : null}
       </button>
 
-      {node.children.length ? (
+      {showChildren ? (
         <div
-          className={`absolute ${submenuPosition} z-20 hidden min-w-[16rem] flex-col gap-2 rounded-[1.2rem] border border-white/10 bg-[#180814]/95 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)] group-hover:flex`}
+          className={`absolute ${submenuPosition} z-20 flex max-h-[26rem] min-w-[16rem] flex-col gap-2 overflow-y-auto rounded-[1.2rem] border border-white/10 bg-[#180814]/95 p-3 shadow-[0_16px_40px_rgba(0,0,0,0.45)]`}
         >
           {node.children.map((childNode) => (
             <ThemePickerNode
+              expandedRootId={expandedRootId}
               key={childNode.id}
+              depth={depth + 1}
+              hoveredPath={hoveredPath}
               node={childNode}
+              onRootToggle={onRootToggle}
+              onHoverPathChange={onHoverPathChange}
               onSelect={onSelect}
+              path={[...path, childNode.id]}
               selectedThemeId={selectedThemeId}
             />
           ))}
@@ -145,11 +216,58 @@ function ThemePickerNode({
   );
 }
 
+function ThemeParamField(props: {
+  definition: ThemeInputDefinition;
+  onChange: (key: string, value: string) => void;
+  value: string;
+}) {
+  const { definition, onChange, value } = props;
+
+  if (definition.type === "select") {
+    return (
+      <label className="flex flex-col gap-2 text-sm text-white/85">
+        <span>{definition.label}</span>
+        <select
+          value={value}
+          onChange={(event) => onChange(definition.key, event.target.value)}
+          className="rounded-2xl border border-white/15 bg-white/92 px-4 py-3 text-sm text-slate-900 outline-none"
+        >
+          <option value="">{definition.placeholder ?? "Selecciona una opcion"}</option>
+          {(definition.options ?? []).map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
+  return (
+    <label className="flex flex-col gap-2 text-sm text-white/85">
+      <span>{definition.label}</span>
+      <input
+        type={definition.type}
+        min={definition.min}
+        max={definition.max}
+        maxLength={definition.type === "text" ? definition.max : undefined}
+        value={value}
+        onChange={(event) => onChange(definition.key, event.target.value)}
+        placeholder={definition.placeholder}
+        className="rounded-2xl border border-white/15 bg-white/92 px-4 py-3 text-sm text-slate-900 outline-none"
+      />
+    </label>
+  );
+}
+
 export default function LocalGameBoard() {
   const [setupPlayers, setSetupPlayers] = useState(initialPlayers);
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [bidCount, setBidCount] = useState("1");
   const [themeChoice, setThemeChoice] = useState<string | null>(null);
+  const [themeParams, setThemeParams] = useState<ThemeParams>({});
+  const [expandedRootId, setExpandedRootId] = useState<string | null>(null);
+  const [hoveredThemePath, setHoveredThemePath] = useState<string[]>([]);
   const [challengeInput, setChallengeInput] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -186,6 +304,13 @@ export default function LocalGameBoard() {
         : null,
     [gameState, themeChoice],
   );
+  const selectedThemeNode = useMemo(
+    () =>
+      gameState && themeChoice
+        ? findThemeNodeById(gameState.themeOptions, themeChoice)
+        : null,
+    [gameState, themeChoice],
+  );
   const activeThemeCopy = getEntityCopy(
     activeTheme?.entityKind ?? challengeTheme?.entityKind ?? "pokemon",
   );
@@ -206,6 +331,30 @@ export default function LocalGameBoard() {
     });
   }
 
+  function handleThemeNodeSelection(node: ThemeNode): void {
+    if (!node.themeTemplateId) {
+      return;
+    }
+
+    setThemeChoice(node.themeTemplateId);
+    setThemeParams(getDefaultThemeParams(node));
+  }
+
+  function updateThemeParam(key: string, value: string): void {
+    setThemeParams((currentParams) => ({
+      ...currentParams,
+      [key]: value,
+    }));
+  }
+
+  function toggleRootCategory(rootId: string): void {
+    setExpandedRootId((currentRootId) => {
+      const nextRootId = currentRootId === rootId ? null : rootId;
+      setHoveredThemePath(nextRootId ? [nextRootId] : []);
+      return nextRootId;
+    });
+  }
+
   async function handleCreateGame() {
     setIsSubmitting(true);
     setError(null);
@@ -215,9 +364,13 @@ export default function LocalGameBoard() {
         action: "init",
         players: setupPlayers,
       });
+      const initialThemeNode = findFirstSelectableThemeNode(nextGameState.themeOptions);
 
       setGameState(nextGameState);
-      setThemeChoice(findFirstSelectableThemeId(nextGameState.themeOptions));
+      setThemeChoice(initialThemeNode?.themeTemplateId ?? null);
+      setThemeParams(getDefaultThemeParams(initialThemeNode));
+      setExpandedRootId(null);
+      setHoveredThemePath([]);
       setBidCount("1");
       setChallengeInput("");
     } catch (createError) {
@@ -245,6 +398,7 @@ export default function LocalGameBoard() {
         gameId: gameState.gameId,
         playerId: gameState.coinFlipWinnerPlayerId,
         selectedThemeId: themeChoice,
+        selectedThemeParams: themeParams,
       });
 
       setGameState(nextGameState);
@@ -562,17 +716,24 @@ export default function LocalGameBoard() {
                         (player) => player.id === gameState.coinFlipWinnerPlayerId,
                       )?.name
                     }{" "}
-                    gano la moneda y elige el tema de la ronda. Pasa el cursor
-                    sobre una categoria para ver sus subcategorias.
+                    gano la moneda y elige el tema de la ronda. Haz click en una
+                    categoria principal para desplegar sus subcategorias.
                   </p>
 
-                  <div className="mt-5 flex flex-wrap items-start justify-center gap-3">
+                  <div
+                    className="relative mt-5 flex flex-wrap items-start justify-center gap-3"
+                    onMouseLeave={() => setHoveredThemePath([])}
+                  >
                     {gameState.themeOptions.map((node) => (
                       <ThemePickerNode
+                        expandedRootId={expandedRootId}
                         key={node.id}
-                        isRoot
+                        hoveredPath={hoveredThemePath}
                         node={node}
-                        onSelect={setThemeChoice}
+                        onRootToggle={toggleRootCategory}
+                        onHoverPathChange={setHoveredThemePath}
+                        onSelect={handleThemeNodeSelection}
+                        path={[node.id]}
                         selectedThemeId={themeChoice}
                       />
                     ))}
@@ -585,6 +746,19 @@ export default function LocalGameBoard() {
                     <p className="mt-2 font-semibold text-white">
                       {selectedThemePath?.join(" > ") ?? "Ninguno"}
                     </p>
+
+                    {selectedThemeNode?.inputDefinitions?.length ? (
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        {selectedThemeNode.inputDefinitions.map((definition) => (
+                          <ThemeParamField
+                            key={`${selectedThemeNode.id}-${definition.key}`}
+                            definition={definition}
+                            onChange={updateThemeParam}
+                            value={String(themeParams[definition.key] ?? "")}
+                          />
+                        ))}
+                      </div>
+                    ) : null}
                   </div>
 
                   <div className="mt-4">
@@ -622,7 +796,7 @@ export default function LocalGameBoard() {
                     disabled={!isChallengeResponse || isSubmitting}
                     rows={4}
                     className="mt-4 w-full rounded-[1.3rem] border border-white/15 bg-white/92 px-4 py-3 text-sm text-slate-900 outline-none disabled:bg-white/70"
-                    placeholder={`Escribelos separados por comas. Ejemplo: ${activeThemeCopy.singular}, ${activeThemeCopy.singular}, ${activeThemeCopy.singular}`}
+                    placeholder="Puedes escribir los pokémon separados por comas,. Ejemplo: Pichu, Pikachu, Raichu"
                   />
                   <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:justify-center">
                     <button
