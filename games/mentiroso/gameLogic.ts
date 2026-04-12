@@ -1,4 +1,7 @@
-import { getPokemonByName, sanitizePokemonNames } from "@/services/pokemonService";
+import {
+  getPokemonByName,
+  sanitizePokemonNames,
+} from "@/services/pokemon/pokemonService";
 
 export async function validateClaim(
   items: string[],

@@ -15,6 +15,10 @@
 import { useMemo, useState } from "react";
 
 import { localTurnClient } from "@/games/mentiroso/localTurnClient";
+import type {
+  GameState,
+  LocalPlayerInput,
+} from "@/games/mentiroso/types";
 import {
   findFirstSelectableThemeNode,
   findThemeNodeById,
@@ -22,8 +26,6 @@ import {
 } from "@/games/mentiroso/themeMenuUtils";
 import type {
   CoinSide,
-  GameState,
-  LocalPlayerInput,
   ThemeNode,
   ThemeParams,
 } from "@/types/types";

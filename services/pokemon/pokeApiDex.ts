@@ -1,9 +1,12 @@
 import {
   getAbilityNamesFromDataset,
   getDexEntryFromDataset,
+  getMoveNamesFromDataset,
+  getPokemonColorsFromDataset,
+  getPokemonEggGroupsFromDataset,
   getPokemonNamesFromDataset,
   normalizeDatasetEntryName,
-} from "@/services/localPokeApiDataset";
+} from "@/services/pokemon/localPokeApiDataset";
 import type {
   DexEntryByKind,
   ItemDexEntry,
@@ -27,6 +30,18 @@ export async function getAbilityNames(): Promise<string[]> {
 
 export async function getPokemonNames(): Promise<string[]> {
   return getPokemonNamesFromDataset();
+}
+
+export async function getMoveNames(): Promise<string[]> {
+  return getMoveNamesFromDataset();
+}
+
+export async function getPokemonColors(): Promise<string[]> {
+  return getPokemonColorsFromDataset();
+}
+
+export async function getPokemonEggGroups(): Promise<string[]> {
+  return getPokemonEggGroupsFromDataset();
 }
 
 export function sanitizeDexEntryNames(names: string[]): string[] {

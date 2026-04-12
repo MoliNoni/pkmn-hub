@@ -39,8 +39,20 @@ export function getAbilityNamesFromDataset(): string[] {
   return runtimeDataset.abilityNames;
 }
 
+export function getMoveNamesFromDataset(): string[] {
+  return runtimeDataset.moveNames;
+}
+
 export function getPokemonNamesFromDataset(): string[] {
   return runtimeDataset.pokemonNames;
+}
+
+export function getPokemonColorsFromDataset(): string[] {
+  return runtimeDataset.pokemonColors;
+}
+
+export function getPokemonEggGroupsFromDataset(): string[] {
+  return runtimeDataset.pokemonEggGroups;
 }
 
 export function getPokemonNamesByTypeFromDataset(type: string): string[] {

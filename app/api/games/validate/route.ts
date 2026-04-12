@@ -1,7 +1,7 @@
 import { createClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
-import { validateGameMove } from "@/core/gameEngine";
+import { validateGameMove } from "@/core/gameValidation";
 import type { Claim, GameResult } from "@/types/types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;

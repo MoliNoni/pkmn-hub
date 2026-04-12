@@ -1,55 +1,13 @@
-import { validateClaim } from "@/games/mentiroso/gameLogic";
+import { getNextPlayerId } from "@/core/turnOrder";
+import type { CoinSide } from "@/types/types";
 import type {
   ActiveRoundTheme,
   Bid,
-  Claim,
-  CoinSide,
-  GameResult,
   Player,
   RoundResult,
   Turn,
-} from "@/types/types";
+} from "@/games/mentiroso/types";
 
-type GameValidator = (payload: Claim) => Promise<GameResult>;
-
-const gameValidators: Record<string, GameValidator> = {
-  mentiroso: async (payload) => {
-    const result = await validateClaim(payload.items, payload.typeClaim ?? "");
-    const invalidPokemons = result.invalidPokemons ?? [];
-
-    return {
-      game: payload.game,
-      playerId: payload.playerId,
-      valid: result.valid,
-      checkedAt: new Date().toISOString(),
-      items: payload.items,
-      typeClaim: payload.typeClaim,
-      invalidPokemons,
-      details: result.valid
-        ? `Todos los Pokemon coinciden con el tipo "${payload.typeClaim ?? ""}".`
-        : `Se encontraron ${invalidPokemons.length} Pokemon fuera del tipo "${payload.typeClaim ?? ""}".`,
-    };
-  },
-};
-
-export async function validateGameMove(
-  game: string,
-  payload: Claim,
-): Promise<GameResult> {
-  const normalizedGame = game.trim().toLowerCase();
-  const validator = gameValidators[normalizedGame];
-
-  if (!validator) {
-    throw new Error(`Unsupported game: ${game}`);
-  }
-
-  return validator({
-    ...payload,
-    game: normalizedGame,
-  });
-}
-
-// Initializes players and randomly decides who starts the round.
 export function initializePlayers(
   players: Array<{ id: string; name: string; coinChoice: CoinSide }>,
   randomValue = Math.random(),
@@ -67,7 +25,6 @@ export function initializePlayers(
   };
 }
 
-// Resolves the coin flip based on the selected sides and random outcome.
 export function resolveCoinFlip(
   players: Player[],
   randomValue = Math.random(),
@@ -85,7 +42,6 @@ export function resolveCoinFlip(
   };
 }
 
-// Builds the initial turn object shared by local round logic.
 export function createInitialTurn(startingPlayerId: string): Turn {
   return {
     roundNumber: 1,
@@ -95,17 +51,6 @@ export function createInitialTurn(startingPlayerId: string): Turn {
   };
 }
 
-// Alternates the turn to the next player in the list.
-export function getNextPlayerId(
-  players: Player[],
-  currentPlayerId: string,
-): string {
-  const currentIndex = players.findIndex((player) => player.id === currentPlayerId);
-  const nextIndex = currentIndex === -1 ? 0 : (currentIndex + 1) % players.length;
-  return players[nextIndex]?.id ?? currentPlayerId;
-}
-
-// Validates that each new bid is strictly greater than the previous highest bid.
 export function isBidGreaterThanPrevious(
   previousBids: Bid[],
   nextBid: Pick<Bid, "count">,
@@ -118,7 +63,6 @@ export function isBidGreaterThanPrevious(
   return nextBid.count > highestCount;
 }
 
-// Creates the next turn state after a successful bid.
 export function advanceSubastaTurn(players: Player[], currentTurn: Turn): Turn {
   const nextPlayerId = getNextPlayerId(players, currentTurn.currentPlayerId);
 
@@ -129,7 +73,6 @@ export function advanceSubastaTurn(players: Player[], currentTurn: Turn): Turn {
   };
 }
 
-// Determines the round winner after a Liar! challenge.
 export function resolveLiarChallenge(params: {
   challengerId: string;
   lastBid: Bid;

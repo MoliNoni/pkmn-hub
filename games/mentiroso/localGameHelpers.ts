@@ -1,9 +1,11 @@
-import { initializePlayers, resolveCoinFlip } from "@/core/gameEngine";
+import { initializePlayers, resolveCoinFlip } from "@/games/mentiroso/engine";
 import { getThemeCatalog } from "@/games/mentiroso/themeEngine";
 import type {
-  HistoryEntry,
   LocalPlayerInput,
   Player,
+  HistoryEntry,
+} from "@/games/mentiroso/types";
+import type {
   ThemeNode,
 } from "@/types/types";
 

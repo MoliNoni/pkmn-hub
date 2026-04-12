@@ -1,5 +1,6 @@
-import { createInitialTurn } from "@/core/gameEngine";
-import type { GameState, LocalPlayerInput, ThemeParams } from "@/types/types";
+import { createInitialTurn } from "@/games/mentiroso/engine";
+import type { GameState, LocalPlayerInput } from "@/games/mentiroso/types";
+import type { ThemeParams } from "@/types/types";
 
 import {
   buildPlayers,

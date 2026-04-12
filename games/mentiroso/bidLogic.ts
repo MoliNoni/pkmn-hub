@@ -1,5 +1,5 @@
-import { advanceSubastaTurn, isBidGreaterThanPrevious } from "@/core/gameEngine";
-import type { Bid, GameState } from "@/types/types";
+import { advanceSubastaTurn, isBidGreaterThanPrevious } from "@/games/mentiroso/engine";
+import type { Bid, GameState } from "@/games/mentiroso/types";
 
 import { createHistoryEntry } from "@/games/mentiroso/localGameHelpers";
 import { getGameOrThrow, saveGame } from "@/games/mentiroso/localGameStore";

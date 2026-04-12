@@ -316,6 +316,17 @@ async function buildPokemonDataset() {
         ?.slice()
         .sort((left, right) => left.slot - right.slot)
         .map((entry) => entry.type.name) ?? [];
+    const statsByName = Object.fromEntries(
+      (pokemon.stats ?? []).map((entry) => [entry.stat.name, entry.base_stat]),
+    );
+    const baseStats = {
+      hp: Number(statsByName.hp ?? 0),
+      attack: Number(statsByName.attack ?? 0),
+      defense: Number(statsByName.defense ?? 0),
+      specialAttack: Number(statsByName["special-attack"] ?? 0),
+      specialDefense: Number(statsByName["special-defense"] ?? 0),
+      speed: Number(statsByName.speed ?? 0),
+    };
 
     entries[normalizedName] = {
       kind: "pokemon",
@@ -324,6 +335,10 @@ async function buildPokemonDataset() {
       displayName: formatDisplayName(pokemon.name),
       spriteUrl: pokemon.sprites?.front_default ?? undefined,
       types: sortedTypes,
+      baseStats: {
+        ...baseStats,
+        total: Object.values(baseStats).reduce((sum, value) => sum + value, 0),
+      },
       abilities:
         pokemon.abilities
           ?.filter((ability) => !ability.is_hidden)
@@ -332,7 +347,15 @@ async function buildPokemonDataset() {
         pokemon.abilities
           ?.filter((ability) => ability.is_hidden)
           .map((ability) => ability.ability.name) ?? [],
+      learnedMoves: (pokemon.moves ?? []).map((move) => move.move.name).sort(),
       generation: species.generation.name,
+      color: species.color.name,
+      eggGroups: (species.egg_groups ?? []).map((group) => group.name),
+      isLegendary: Boolean(species.is_legendary),
+      isMythical: Boolean(species.is_mythical),
+      isRegionalForm: Boolean(getRegionalFormGeneration(pokemon.name)),
+      isGenderless: species.gender_rate === -1,
+      isSingular: chainSpecies.length === 1,
       evolution: {
         chainId: evolutionChain.id,
         speciesName: species.name,
@@ -459,7 +482,16 @@ async function main() {
     generatedAt: new Date().toISOString(),
     source: "https://pokeapi.co/",
     abilityNames: abilityNames.slice().sort(),
+    moveNames: Object.values(moveEntries)
+      .map((entry) => entry.name)
+      .sort(),
     pokemonNames: pokemonDataset.pokemonNames,
+    pokemonColors: [...new Set(Object.values(pokemonDataset.entries).map((entry) => entry.color))].sort(),
+    pokemonEggGroups: [
+      ...new Set(
+        Object.values(pokemonDataset.entries).flatMap((entry) => entry.eggGroups),
+      ),
+    ].sort(),
     pokemonTypeIndex: pokemonDataset.typeIndex,
     entries: {
       pokemon: pokemonDataset.entries,

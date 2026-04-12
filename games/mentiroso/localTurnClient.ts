@@ -15,8 +15,8 @@
 import type {
   GameState,
   LocalPlayerInput,
-  ThemeParams,
-} from "@/types/types";
+} from "@/games/mentiroso/types";
+import type { ThemeParams } from "@/types/types";
 
 async function sendLocalTurnRequest(body: unknown): Promise<GameState> {
   const response = await fetch("/api/games/turn", {
@@ -24,7 +24,10 @@ async function sendLocalTurnRequest(body: unknown): Promise<GameState> {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify({
+      gameType: "mentiroso-local",
+      ...((body as Record<string, unknown>) ?? {}),
+    }),
   });
 
   const data = (await response.json()) as GameState | { error: string };

@@ -1,10 +1,12 @@
-import { getNextPlayerId, resolveLiarChallenge } from "@/core/gameEngine";
+import { getNextPlayerId } from "@/core/turnOrder";
+import { resolveLiarChallenge } from "@/games/mentiroso/engine";
 import { validateChallengeEntries } from "@/games/mentiroso/challengeEntryValidation";
 import { validateThemeEntry } from "@/games/mentiroso/themeEngine";
 import { createHistoryEntry } from "@/games/mentiroso/localGameHelpers";
 import { getGameOrThrow, saveGame } from "@/games/mentiroso/localGameStore";
-import { getDynamicPokemonFrequencyScore } from "@/services/pokemonService";
-import type { GameState, ThemeEntityKind } from "@/types/types";
+import { getDynamicPokemonFrequencyScore } from "@/services/pokemon/pokemonService";
+import type { GameState } from "@/games/mentiroso/types";
+import type { ThemeEntityKind } from "@/types/types";
 
 function getEntityLabel(entityKind: ThemeEntityKind): string {
   if (entityKind === "item") {

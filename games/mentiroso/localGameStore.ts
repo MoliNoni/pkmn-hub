@@ -1,17 +1,12 @@
-import type { GameState } from "@/types/types";
+import { createInMemoryGameStore } from "@/games/shared/gameSessionStore";
+import type { GameState } from "@/games/mentiroso/types";
 
-const localGames = new Map<string, GameState>();
+const localGameStore = createInMemoryGameStore<GameState>();
 
 export function saveGame(gameState: GameState): void {
-  localGames.set(gameState.gameId, gameState);
+  localGameStore.save(gameState);
 }
 
 export function getGameOrThrow(gameId: string): GameState {
-  const game = localGames.get(gameId);
-
-  if (!game) {
-    throw new Error("No se encontro la partida local.");
-  }
-
-  return game;
+  return localGameStore.getOrThrow(gameId, "No se encontro la partida local.");
 }

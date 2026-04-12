@@ -9,7 +9,7 @@
  * - If multiple games share result cards, extract a generic round-result view.
  */
 
-import type { GameState } from "@/types/types";
+import type { GameState } from "@/games/mentiroso/types";
 
 type RoundResultPanelProps = {
   gameState: GameState;

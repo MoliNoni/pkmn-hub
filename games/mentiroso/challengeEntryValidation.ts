@@ -12,7 +12,10 @@
  *   generic duplicate checks from Pokémon-specific validators.
  */
 
-import { getDexEntryByName, normalizeDexEntryName } from "@/services/pokeApiDex";
+import {
+  getDexEntryByName,
+  normalizeDexEntryName,
+} from "@/services/pokemon/pokeApiDex";
 import type { ActiveRoundTheme } from "@/types/types";
 
 function formatEntryName(name: string): string {

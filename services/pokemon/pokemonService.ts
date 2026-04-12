@@ -1,4 +1,7 @@
-import { getDexEntryFromDataset, getPokemonNamesByTypeFromDataset } from "@/services/localPokeApiDataset";
+import {
+  getDexEntryFromDataset,
+  getPokemonNamesByTypeFromDataset,
+} from "@/services/pokemon/localPokeApiDataset";
 import type { Pokemon, PokemonType } from "@/types/types";
 
 const normalizePokemonName = (name: string) =>

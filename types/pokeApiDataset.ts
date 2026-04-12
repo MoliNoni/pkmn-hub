@@ -7,9 +7,26 @@ export type PokemonDexEntry = {
   displayName: string;
   spriteUrl?: string;
   types: string[];
+  baseStats: {
+    hp: number;
+    attack: number;
+    defense: number;
+    specialAttack: number;
+    specialDefense: number;
+    speed: number;
+    total: number;
+  };
   abilities: string[];
   hiddenAbilities: string[];
+  learnedMoves: string[];
   generation: string;
+  color: string;
+  eggGroups: string[];
+  isLegendary: boolean;
+  isMythical: boolean;
+  isRegionalForm: boolean;
+  isGenderless: boolean;
+  isSingular: boolean;
   evolution: {
     chainId: number;
     speciesName: string;
@@ -64,7 +81,10 @@ export type PokeApiRuntimeDataset = {
   generatedAt: string;
   source: string;
   abilityNames: string[];
+  moveNames: string[];
   pokemonNames: string[];
+  pokemonColors: string[];
+  pokemonEggGroups: string[];
   pokemonTypeIndex: Record<string, string[]>;
   entries: {
     item: Record<string, ItemDexEntry>;

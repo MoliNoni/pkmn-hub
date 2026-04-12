@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "eslint",
     "download:sprites": "node scripts/download-pokemon-sprites.mjs",
-    "build:pokeapi-data": "node scripts/build-pokeapi-runtime-data.mjs"
+    "build:pokeapi-data": "node scripts/build-pokeapi-runtime-data.mjs",
+    "scaffold:game-mode": "node scripts/scaffold-game-mode.mjs"
   },
   "dependencies": {
     "@prisma/client": "^7.6.0",
