@@ -18,4 +18,13 @@ export const firstonetosayGameDefinition: GameDefinition<FirstOneToSayTurnReques
   gameType: "first-one-to-say-local",
   isRequest: isFirstOneToSayTurnRequest,
   handleAction: async () => createFirstOneToSayGame(),
+  metadata: {
+    id: "first-one-to-say",
+    title: "First One To Say",
+    shortTitle: "First One",
+    description:
+      "Modo rapido basado en ser la primera persona en decir un Pokemon que cumpla el criterio activo.",
+    availability: "coming-soon",
+    sharedMechanics: ["theme-criteria", "pokemon-answer-validation"],
+  },
 };

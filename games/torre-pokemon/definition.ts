@@ -18,4 +18,13 @@ export const torrepokemonGameDefinition: GameDefinition<TorrePokemonTurnRequest,
   gameType: "torre-pokemon-local",
   isRequest: isTorrePokemonTurnRequest,
   handleAction: async () => createTorrePokemonGame(),
+  metadata: {
+    id: "torre-pokemon",
+    title: "Torre Pokemon",
+    shortTitle: "Torre",
+    description:
+      "Modo de progresion por pisos para responder desafios Pokemon cada vez mas exigentes.",
+    availability: "coming-soon",
+    sharedMechanics: ["pokemon-answer-validation"],
+  },
 };

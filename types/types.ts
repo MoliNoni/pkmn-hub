@@ -1,3 +1,5 @@
+export type { GameType } from "@/games/shared/gameTypes";
+
 export type Trainer = {
   id: string;
   name?: string;
@@ -27,7 +29,6 @@ export const POKEMON_TYPES = [
 export type PokemonType = (typeof POKEMON_TYPES)[number];
 export type ThemeEntityKind = "pokemon" | "item" | "move";
 export type CoinSide = "cara" | "sello";
-export type GameType = "mentiroso-local";
 
 export type Pokemon = {
   id: number;

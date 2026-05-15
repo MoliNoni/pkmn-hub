@@ -1,7 +1,6 @@
 import { getNextPlayerId } from "@/core/turnOrder";
-import type { CoinSide } from "@/types/types";
+import type { ActiveRoundTheme, CoinSide } from "@/types/types";
 import type {
-  ActiveRoundTheme,
   Bid,
   Player,
   RoundResult,

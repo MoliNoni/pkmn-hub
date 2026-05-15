@@ -18,4 +18,13 @@ export const quienesquienGameDefinition: GameDefinition<QuienEsQuienTurnRequest,
   gameType: "quien-es-quien-local",
   isRequest: isQuienEsQuienTurnRequest,
   handleAction: async () => createQuienEsQuienGame(),
+  metadata: {
+    id: "quien-es-quien",
+    title: "Quien es Quien Pokemon",
+    shortTitle: "Quien es Quien",
+    description:
+      "Juego de deduccion para identificar Pokemon a partir de pistas y descartes.",
+    availability: "coming-soon",
+    sharedMechanics: ["pokemon-dataset"],
+  },
 };

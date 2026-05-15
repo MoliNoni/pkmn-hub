@@ -118,4 +118,14 @@ export const mentirosoGameDefinition: GameDefinition<LocalTurnRequest, GameState
   gameType: "mentiroso-local",
   handleAction: handleLocalTurnRequest,
   isRequest: isLocalTurnRequest,
+  metadata: {
+    id: "mentiroso",
+    title: "Mentiroso Pokemon",
+    shortTitle: "Mentiroso",
+    description:
+      "Juego local de bluff donde cada jugador sube la apuesta sobre cuantos Pokemon, items o movimientos cumplen un criterio.",
+    availability: "available",
+    playPath: "/games/mentiroso",
+    sharedMechanics: ["theme-criteria", "pokemon-answer-validation"],
+  },
 };
